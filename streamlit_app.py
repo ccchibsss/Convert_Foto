@@ -667,10 +667,10 @@ def main():
     
     # Инициализация
     if 'generator' not in st.session_state:
-        st.session_state.generator = InfographicGenerator()
-        st.session_state.infographics = []
+        st.session_state['generator'] = InfographicGenerator()
+        st.session_state['infographics'] = []
     
-    generator = st.session_state.generator
+    generator = st.session_state['generator']
     
     # Боковая панель с типами инфографики
     with st.sidebar:
@@ -711,7 +711,7 @@ def main():
         st.caption("💡 Загрузите данные и изображения для создания инфографики")
     
     # Основные вкладки
-    tab1, tab2, tab3 = st.tabs(["📁 Данные", "🖼️ Превью", "📊 Результаты"])
+    tab1, tab2, tab3 = st.tabs(["📁 Данные", "🖼️ Предпросмотр", "📊 Результаты"])
     
     with tab1:
         st.header("1. Загрузка данных")
@@ -734,7 +734,7 @@ def main():
                         df = pd.read_excel(data_file)
                     
                     st.dataframe(df.head(), use_container_width=True)
-                    st.session_state.df = df
+                    st.session_state['df'] = df
                 except Exception as e:
                     st.error(f"Ошибка: {str(e)}")
         
@@ -749,60 +749,52 @@ def main():
             
             if product_images:
                 st.success(f"Загружено {len(product_images)} изображений")
-                st.session_state.product_images = {f.name: Image.open(f) for f in product_images}
+                # Правильное присвоение в session_state
+                st.session_state['product_images'] = {f.name: Image.open(f) for f in product_images}
         
         # Данные для конкретного типа инфографики
         st.subheader(f"📝 Данные для {infographic_type}")
         
+        # В зависимости от выбранного типа собираем данные
+        if 'infographic_type' not in st.session_state:
+            st.session_state['infographic_type'] = infographic_type
+        else:
+            st.session_state['infographic_type'] = infographic_type
+        
         if infographic_type == "📏 Размерная сетка":
-            col_s1, col_s2, col_s3 = st.columns(3)
-            with col_s1:
-                sizes = st.text_input("Размеры (через запятую)", "XS,S,M,L,XL")
-            with col_s2:
-                measurements = st.text_input("Измерения (через запятую)", "Длина,Ширина,Высота")
-            with col_s3:
-                size_tip = st.text_input("Совет по выбору", "Выбирайте по самой широкой части")
-            
-            st.session_state.infographic_data = {
+            sizes = st.text_input("Размеры (через запятую)", "XS,S,M,L,XL")
+            measurements = st.text_input("Измерения (через запятую)", "Длина,Ширина,Высота")
+            size_tip = st.text_input("Совет по выбору", "Выбирайте по самой широкой части")
+            st.session_state['infographic_data'] = {
                 'title': 'Размерная сетка',
                 'sizes': [s.strip() for s in sizes.split(',')],
                 'measurements': [m.strip() for m in measurements.split(',')],
                 'size_tip': size_tip
             }
-        
         elif infographic_type == "📊 Технические характеристики":
-            st.info("Добавьте характеристики в формате: Название: Значение")
-            
             specs_text = st.text_area(
                 "Характеристики (каждая с новой строки)",
                 "Мощность: 100 Вт\nНапряжение: 12 В\nВес: 1.5 кг"
             )
-            
             benefits = st.text_area("Преимущества (каждое с новой строки)", 
-                                   "Высокое качество\nДолговечность\nГарантия")
-            
+                                    "Высокое качество\nДолговечность\nГарантия")
             specs = {}
             for line in specs_text.split('\n'):
                 if ':' in line:
                     key, value = line.split(':', 1)
                     specs[key.strip()] = value.strip()
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'title': 'Технические характеристики',
                 'specs': specs,
                 'benefits': [b.strip() for b in benefits.split('\n') if b.strip()]
             }
-        
         elif infographic_type == "⚖️ Сравнение с конкурентами":
             our_product = st.text_input("Название нашего товара", "Наш товар")
             competitors = st.text_input("Конкуренты (через запятую)", "Бренд А, Бренд Б, Бренд В")
-            
-            st.info("Добавьте характеристики для сравнения")
             features_text = st.text_area(
                 "Характеристики (каждая с новой строки в формате: Название | Наше значение | Значение А | Значение Б | Значение В)",
                 "Цена | 1000 | 1500 | 1200 | 1800\nКачество | 5 | 4 | 3 | 4"
             )
-            
             features = []
             for line in features_text.split('\n'):
                 parts = [p.strip() for p in line.split('|')]
@@ -813,21 +805,18 @@ def main():
                         'competitors': parts[2:] if len(parts) > 2 else []
                     }
                     features.append(feature)
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'title': 'Сравнение',
                 'our_product': our_product,
                 'competitors': [c.strip() for c in competitors.split(',')],
                 'features': features,
                 'conclusion': 'Лучшее соотношение цены и качества'
             }
-        
         elif infographic_type == "💡 УТП и преимущества":
             title = st.text_input("Название товара", "Наш товар")
             subtitle = st.text_input("Подзаголовок", "Почему стоит выбрать?")
             price = st.text_input("Цена", "1 500 ₽")
-            
-            st.info("Добавьте преимущества")
+            benefits = st.text_area("Преимущества", "Высокое качество\nДолговечность\nГарантия")
             usp_items = []
             for i in range(5):
                 with st.expander(f"Преимущество {i+1}"):
@@ -835,19 +824,15 @@ def main():
                     usp_desc = st.text_area(f"Описание {i+1}", f"Описание преимущества {i+1}", key=f"usp_desc_{i}")
                     if usp_title:
                         usp_items.append({'title': usp_title, 'description': usp_desc})
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'title': title,
                 'subtitle': subtitle,
                 'price': price,
                 'usp': usp_items
             }
-        
         elif infographic_type == "📖 Инструкция":
             title = st.text_input("Название", "Инструкция по применению")
             warning = st.text_input("Предупреждение", "Перед использованием ознакомьтесь с инструкцией")
-            
-            st.info("Добавьте шаги инструкции")
             steps = []
             for i in range(5):
                 with st.expander(f"Шаг {i+1}"):
@@ -860,23 +845,19 @@ def main():
                             'description': step_desc,
                             'icon': step_icon
                         })
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'title': title,
                 'warning': warning,
                 'steps': steps
             }
-        
         elif infographic_type == "📦 Упаковка и комплектация":
             size = st.text_input("Размер упаковки", "30x30x30 см")
             weight = st.text_input("Вес", "1.5 кг")
             quantity = st.text_input("Количество в упаковке", "1 шт")
             manufacturer = st.text_input("Производитель", "Россия")
-            
             contents = st.text_area("Состав комплекта (каждый с новой строки)", 
                                    "Товар\nИнструкция\nГарантийный талон")
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'package': {
                     'size': size,
                     'weight': weight,
@@ -885,11 +866,8 @@ def main():
                 },
                 'contents': [c.strip() for c in contents.split('\n') if c.strip()]
             }
-        
         elif infographic_type == "🏆 Сертификаты":
             title = st.text_input("Название", "Сертификаты и награды")
-            
-            st.info("Добавьте сертификаты")
             certificates = []
             for i in range(4):
                 with st.expander(f"Сертификат {i+1}"):
@@ -902,28 +880,20 @@ def main():
                             'issuer': cert_issuer,
                             'date': cert_date
                         })
-            
-            standards = st.text_area("Соответствие стандартам (каждый с новой строки)", 
-                                    "ISO 9001\nГОСТ Р\nCE")
-            
-            st.session_state.infographic_data = {
+            standards = st.text_area("Соответствие стандартам (каждый с новой строки)", "ISO 9001\nГОСТ Р\nCE")
+            st.session_state['infographic_data'] = {
                 'title': title,
                 'certificates': certificates,
                 'standards': [s.strip() for s in standards.split('\n') if s.strip()]
             }
-        
         elif infographic_type == "💰 Цены и акции":
             discount = st.text_input("Скидка %", "20")
             old_price = st.text_input("Старая цена", "5000")
             new_price = st.text_input("Новая цена", "4000")
             currency = st.selectbox("Валюта", ["₽", "$", "€"])
-            
-            benefits = st.text_area("Преимущества покупки (каждое с новой строки)",
-                                   "Бесплатная доставка\nГарантия 2 года\nПодарок")
-            
+            benefits = st.text_area("Преимущества покупки (каждое с новой строки)", "Бесплатная доставка\nГарантия 2 года\nПодарок")
             timer = st.text_input("Таймер акции", "24:00:00")
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'discount': discount,
                 'old_price': old_price,
                 'new_price': new_price,
@@ -931,10 +901,8 @@ def main():
                 'benefits': [b.strip() for b in benefits.split('\n') if b.strip()],
                 'timer': timer
             }
-        
         elif infographic_type == "🔬 Состав и материалы":
             title = st.text_input("Название", "Состав и материалы")
-            
             st.info("Введите состав в процентах")
             materials = {}
             col_m1, col_m2 = st.columns(2)
@@ -948,17 +916,14 @@ def main():
                 val2 = st.number_input("%", 0, 100, 20, key="mat2")
                 if mat2:
                     materials[mat2] = val2
-            
             col_m3, col_m4 = st.columns(2)
             with col_m3:
                 mat3 = st.text_input("Материал 3", "Резина")
                 val3 = st.number_input("%", 0, 100, 10, key="mat3")
                 if mat3:
                     materials[mat3] = val3
-            
             composition = st.text_area("Детальный состав", "Подробное описание состава материала...")
-            
-            st.session_state.infographic_data = {
+            st.session_state['infographic_data'] = {
                 'title': title,
                 'materials': materials,
                 'composition': composition
@@ -966,16 +931,18 @@ def main():
     
     with tab2:
         st.header("2. Предпросмотр")
-        
         if st.button("🎨 Создать предпросмотр", use_container_width=True):
             data = st.session_state.get('infographic_data', {})
-            
             # Добавляем изображение если есть
-            if 'product_images' in st.session_state and st.session_state.product_images:
-                first_img = list(st.session_state.product_images.values())[0]
-                data['product_image'] = first_img
-            
+            if 'product_images' in st.session_state:
+                if st.session_state['product_images']:
+                    first_img = list(st.session_state['product_images'].values())[0]
+                    data['product_image'] = first_img
             # Создаем инфографику в зависимости от типа
+            if 'infographic_type' in st.session_state:
+                infographic_type = st.session_state['infographic_type']
+            else:
+                infographic_type = "📏 Размерная сетка"
             if infographic_type == "📏 Размерная сетка":
                 result = generator.create_size_chart_infographic(data, design_settings)
             elif infographic_type == "📊 Технические характеристики":
@@ -996,30 +963,23 @@ def main():
                 result = generator.create_materials_infographic(data, design_settings)
             else:
                 result = Image.new('RGB', (900, 1200), 'white')
-            
             st.image(result, caption="Предпросмотр инфографики", use_container_width=True)
-            st.session_state.preview = result
+            st.session_state['preview'] = result
     
     with tab3:
         st.header("3. Готовые результаты")
-        
         if 'df' in st.session_state and 'product_images' in st.session_state:
             if st.button("🚀 СОЗДАТЬ ДЛЯ ВСЕХ ТОВАРОВ", type="primary", use_container_width=True):
-                
                 progress_bar = st.progress(0)
                 status_text = st.empty()
-                
                 processed_files = []
-                df = st.session_state.df
+                df = st.session_state['df']
                 total = len(df)
-                
                 for idx, row in df.iterrows():
                     try:
                         status_text.text(f"Обработка: строка {idx+1}/{total}")
-                        
                         # Берем данные из строки
                         data = st.session_state.get('infographic_data', {}).copy()
-                        
                         # Подставляем значения из DataFrame
                         for key in data:
                             if isinstance(data[key], str) and '{' in data[key]:
@@ -1027,21 +987,21 @@ def main():
                                     data[key] = data[key].format(**row.to_dict())
                                 except:
                                     pass
-                        
                         # Ищем изображение
                         article = str(row.get(st.session_state.get('article_col', 'Артикул'), ''))
                         product_img = None
-                        
                         if 'product_images' in st.session_state:
-                            for fname, img in st.session_state.product_images.items():
+                            for fname, img in st.session_state['product_images'].items():
                                 if article in fname or fname.startswith(article):
                                     product_img = img.copy()
                                     break
-                        
                         if product_img:
                             data['product_image'] = product_img
-                        
                         # Создаем инфографику
+                        if 'infographic_type' in st.session_state:
+                            infographic_type = st.session_state['infographic_type']
+                        else:
+                            infographic_type = "📏 Размерная сетка"
                         if infographic_type == "📏 Размерная сетка":
                             result = generator.create_size_chart_infographic(data, design_settings)
                         elif infographic_type == "📊 Технические характеристики":
@@ -1062,29 +1022,21 @@ def main():
                             result = generator.create_materials_infographic(data, design_settings)
                         else:
                             continue
-                        
                         # Сохраняем
                         img_bytes = io.BytesIO()
                         result.save(img_bytes, format='PNG')
-                        
                         filename = f"{article}_{infographic_type[:10]}.png"
                         processed_files.append((filename, img_bytes.getvalue()))
-                        
                     except Exception as e:
                         st.error(f"Ошибка: {str(e)}")
-                    
                     progress_bar.progress((idx + 1) / total)
-                
                 status_text.text("✅ Готово!")
-                
                 if processed_files:
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
                         for filename, data in processed_files:
                             zip_file.writestr(filename, data)
-                    
                     zip_buffer.seek(0)
-                    
                     st.download_button(
                         "📥 Скачать ZIP архив",
                         data=zip_buffer,
