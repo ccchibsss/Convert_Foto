@@ -1,17 +1,14 @@
-# Файл requirements.txt
-streamlit
-pandas
-numpy
-plotly
-Pillow
-openpyxl
-xlrd
-kaleido
-scipy
-scikit-learn
-concurrent-futures
-threadpool
-python-magic
-psutil
-tqdm
-colorama
+# Основные библиотеки для работы скрипта
+streamlit==1.23.1
+pandas==1.5.3
+plotly==5.13.1
+Pillow==9.4.0
+numpy==1.23.5
+openpyxl==3.0.10
+
+# Дополнительные библиотеки (если потребуется)
+# - библиотеки для работы с файлами Excel уже включены через openpyxl
+# - библиотека concurrent.futures входит в стандартную библиотеку Python 3.2+, потому не указывается
+
+# Для обновления pip (рекомендуется)
+# pip>=23.0  (не добавлять в requirements.txt, обновляйте отдельно командой)
