@@ -1,26 +1,26 @@
 # requirements.txt
 
 # Основные библиотеки
-streamlit==1.28.0
-pillow==10.0.0
-numpy==1.24.0
-pandas==2.0.0
-openpyxl==3.1.0
+streamlit
+pillow
+numpy
+pandas
+openpyxl
 
 # Работа с изображениями
-imageio==2.31.0
-scikit-image==0.21.0
-opencv-python==4.8.0
+imageio
+scikit-image
+opencv-python
 
 # Генерация кодов
-qrcode==7.4.2
-python-barcode==0.14.0
+qrcode
+python-barcode
 
 # Работа с Excel
-xlrd==2.0.1
-xlsxwriter==3.1.0
+xlrd
+xlsxwriter0
 
 # Дополнительные утилиты
-python-magic==0.4.27
-requests==2.31.0
-colorama==0.4.6
+python-magic
+requests
+colorama
