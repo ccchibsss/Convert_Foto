@@ -242,18 +242,18 @@ def run_app():
     # ===================== БОКОВАЯ ПАНЕЛЬ =====================
 
     with st.sidebar:
-        st.image("https://via.placeholder.com/300x100/FF4B4B/FFFFFF?text=ImageMagic+Pro", use_column=True)
-        st.markdown("## 🎯 Быстрый старт")
-        mode = st.selectbox(
-            "Режим работы",
-            [
-                "🚀 Экспресс конвертация",
-                "🛒 Для маркетплейсов",
-                "📦 Пакетная обработка",
-                "📊 Анализ изображений",
-                "🔄 Пакетное переименование"
-            ]
-        )
+    st.image("https://via.placeholder.com/300x100/FF4B4B/FFFFFF?text=ImageMagic+Pro", use_column_width=True)
+    st.markdown("## 🎯 Быстрый старт")
+    mode = st.selectbox(
+        "Режим работы",
+        [
+            "🚀 Экспресс конвертация",
+            "🛒 Для маркетплейсов",
+            "📦 Пакетная обработка",
+            "📊 Анализ изображений",
+            "🔄 Пакетное переименование"
+        ]
+    )
         st.markdown("---")
         if mode == "🛒 Для маркетплейсов":
             st.markdown("### 🏪 Выберите площадку")
