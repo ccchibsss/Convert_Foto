@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps, ImageEnhance
 import io
 from datetime import datetime
 import zipfile
@@ -54,21 +54,63 @@ def run_app():
                         continue
         return sizes
 
+    def add_frame(image, frame_thickness, frame_color):
+        width, height = image.size
+        new_width = width + 2 * frame_thickness
+        new_height = height + 2 * frame_thickness
+        framed_img = Image.new("RGB", (new_width, new_height), frame_color)
+        framed_img.paste(image, (frame_thickness, frame_thickness))
+        return framed_img
+
+    def rotate_flip(image, rotate_angle, flip_horizontal, flip_vertical):
+        if rotate_angle != 0:
+            image = image.rotate(rotate_angle, expand=True)
+        if flip_horizontal:
+            image = ImageOps.mirror(image)
+        if flip_vertical:
+            image = ImageOps.flip(image)
+        return image
+
+    def apply_filters(image, brightness=1.0, contrast=1.0, sharpness=1.0):
+        enhancer = ImageEnhance.Brightness(image)
+        image = enhancer.enhance(brightness)
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(contrast)
+        enhancer = ImageEnhance.Sharpness(image)
+        image = enhancer.enhance(sharpness)
+        return image
+
     def process_single_image(args):
-        uploaded_file, size_info, output_format, quality, preserve_aspect = args
+        (uploaded_file, size_info, output_format, quality, preserve_aspect,
+         rotate_angle, flip_horizontal, flip_vertical,
+         brightness, contrast, sharpness,
+         frame_thickness, frame_color) = args
         filename_base = f"{Path(uploaded_file.name).stem}_{size_info['name']}_{size_info['size'][0]}x{size_info['size'][1]}"
         filename_base = "".join(c for c in filename_base if c.isalnum() or c in "._- ").strip()
 
         try:
             image = Image.open(uploaded_file).convert("RGBA" if output_format=="PNG" else "RGB")
+            # Основные преобразования
             if preserve_aspect:
                 resized_img = resize_with_aspect(image, size_info["size"])
             else:
                 resized_img = resize_with_crop(image, size_info["size"])
 
+            # Поворот и отражение
+            resized_img = rotate_flip(resized_img, rotate_angle, flip_horizontal, flip_vertical)
+
+            # Фильтры
+            resized_img = apply_filters(resized_img, brightness, contrast, sharpness)
+
+            # Добавление рамки
+            if frame_thickness > 0:
+                resized_img = add_frame(resized_img, frame_thickness, frame_color)
+
+            # Конвертация формата
             if output_format in ["JPEG", "WEBP"] and resized_img.mode != "RGB":
                 resized_img = resized_img.convert("RGB")
 
+            # Сохранение
             img_bytes = io.BytesIO()
             save_params = {'quality': quality} if output_format in ["JPEG", "WEBP"] else {}
             resized_img.save(img_bytes, format=output_format, **save_params)
@@ -79,7 +121,10 @@ def run_app():
         except Exception as e:
             return None
 
-    def process_images(files, sizes, output_format, quality, preserve_aspect):
+    def process_images(files, sizes, output_format, quality, preserve_aspect,
+                       rotate_angle, flip_horizontal, flip_vertical,
+                       brightness, contrast, sharpness,
+                       frame_thickness, frame_color):
         total_tasks = len(files) * len(sizes)
         progress = st.progress(0)
         status_message = st.empty()
@@ -91,7 +136,10 @@ def run_app():
             tasks = []
             for uploaded_file in files:
                 for size_info in sizes:
-                    tasks.append((uploaded_file, size_info, output_format, quality, preserve_aspect))
+                    tasks.append((uploaded_file, size_info, output_format, quality, preserve_aspect,
+                                  rotate_angle, flip_horizontal, flip_vertical,
+                                  brightness, contrast, sharpness,
+                                  frame_thickness, frame_color))
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
                 results = list(executor.map(process_single_image, tasks))
                 for idx, result in enumerate(results):
@@ -108,7 +156,7 @@ def run_app():
     # ===================== НАСТРОЙКИ =====================
 
     st.set_page_config(
-        page_title="ImageMagic Pro - Конвертер для маркетплейсов",
+        page_title="ImageMagic Pro - Многофункциональный редактор",
         page_icon="✨",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -135,41 +183,44 @@ def run_app():
 
     # Заголовки
     st.markdown("<h1 class='main-header'>ImageMagic Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-header'>Конвертер изображений для маркетплейсов</p>", unsafe_allow_html=True)
+    st.markdown("<p class='sub-header'>Многофункциональный редактор изображений</p>", unsafe_allow_html=True)
 
-    # Стандартные размеры для маркетплейсов
-    standard_sizes = {
-        "Яндекс.Маркет": ["512x512", "1024x1024"],
-        "Ozon": ["600x600", "1200x1200"],
-        "Wildberries": ["600x600", "1000x1000"],
-        "AliExpress": ["800x800", "1600x1600"],
-        "Общие": ["512x512", "1024x1024", "800x800"]
-    }
-
-    # Выбор предустановленного набора размеров по умолчанию
-    default_preset = "Общие"
-    default_sizes = standard_sizes[default_preset]
-
-    # Настройки
+    # В боковой панели
     with st.sidebar:
-        st.header("Настройки")
-        output_format = st.selectbox("Формат сохраняемых изображений", ["JPEG", "PNG", "WEBP"])
-        quality = st.slider("Качество изображения (%)", 1, 100, 85)
-        preserve_aspect = st.checkbox("Сохранять пропорции при изменении размера", value=True)
+        st.header("Настройки обработки")
+        output_format = st.selectbox("Формат выхода", ["JPEG", "PNG", "WEBP"])
+        quality = st.slider("Качество", 1, 100, 85)
+        preserve_aspect = st.checkbox("Сохранять пропорции", value=True)
 
-        # Предустановленный размер
-        preset = st.selectbox("Выберите стандартный набор размеров", list(standard_sizes.keys()), index=list(standard_sizes.keys()).index(default_preset))
-        sizes_input = ", ".join(standard_sizes[preset])
+        st.header("Трансформации")
+        rotate_angle = st.slider("Поворот (градусы)", 0, 360, 0)
+        flip_horizontal = st.checkbox("Отразить по горизонтали")
+        flip_vertical = st.checkbox("Отразить по вертикали")
 
+        st.header("Фильтры")
+        brightness = st.slider("Яркость", 0.1, 3.0, 1.0, step=0.1)
+        contrast = st.slider("Контрастность", 0.1, 3.0, 1.0, step=0.1)
+        sharpness = st.slider("Резкость", 0.1, 3.0, 1.0, step=0.1)
+
+        st.header("Добавление рамки")
+        frame_thickness = st.slider("Толщина рамки (пиксели)", 0, 50, 0)
+        frame_color = st.color_picker("Цвет рамки", "#000000")
+
+        st.header("Размеры для обработки")
+        sizes_input = st.text_area("Введите размеры (через запятую, например, 600x600, 800x800)", value="600x600, 800x800")
         sizes = parse_sizes(sizes_input)
 
-    # Основная часть
+    # Загрузка изображений
     st.write("Загрузите изображения для обработки:")
     uploaded_files = st.file_uploader("Выберите файлы", accept_multiple_files=True, type=["png", "jpg", "jpeg", "webp"])
 
+    # Обработка
     if uploaded_files and sizes:
         zip_bytes, individual_files = process_images(
-            uploaded_files, sizes, output_format, quality, preserve_aspect
+            uploaded_files, sizes, output_format, quality, preserve_aspect,
+            rotate_angle, flip_horizontal, flip_vertical,
+            brightness, contrast, sharpness,
+            frame_thickness, frame_color
         )
 
         # Скачивание ZIP
@@ -179,8 +230,9 @@ def run_app():
             file_name=f"images_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
             mime="application/zip"
         )
-        st.write("или")
+
         # Отдельные файлы
+        st.write("Или скачайте отдельные файлы:")
         for filename, data in individual_files:
             st.download_button(
                 label=f"📥 {filename}",
