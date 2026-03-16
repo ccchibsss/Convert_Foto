@@ -4,6 +4,7 @@ import io
 from datetime import datetime
 import zipfile
 from pathlib import Path
+import concurrent.futures
 
 def run_app():
     # ===================== ФУНКЦИИ =====================
@@ -53,6 +54,31 @@ def run_app():
                         continue
         return sizes
 
+    def process_single_image(args):
+        uploaded_file, size_info, output_format, quality, preserve_aspect = args
+        filename_base = f"{Path(uploaded_file.name).stem}_{size_info['name']}_{size_info['size'][0]}x{size_info['size'][1]}"
+        filename_base = "".join(c for c in filename_base if c.isalnum() or c in "._- ").strip()
+
+        try:
+            image = Image.open(uploaded_file).convert("RGBA" if output_format=="PNG" else "RGB")
+            if preserve_aspect:
+                resized_img = resize_with_aspect(image, size_info["size"])
+            else:
+                resized_img = resize_with_crop(image, size_info["size"])
+
+            if output_format in ["JPEG", "WEBP"] and resized_img.mode != "RGB":
+                resized_img = resized_img.convert("RGB")
+
+            img_bytes = io.BytesIO()
+            save_params = {'quality': quality} if output_format in ["JPEG", "WEBP"] else {}
+            resized_img.save(img_bytes, format=output_format, **save_params)
+            data = img_bytes.getvalue()
+
+            filename = f"{filename_base}.{output_format.lower()}"
+            return filename, data
+        except Exception as e:
+            return None
+
     def process_images(files, sizes, output_format, quality, preserve_aspect):
         total_tasks = len(files) * len(sizes)
         progress = st.progress(0)
@@ -62,44 +88,22 @@ def run_app():
         individual_files = []
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            tasks = []
             for uploaded_file in files:
-                try:
-                    original_name = Path(uploaded_file.name).stem
-                    image = Image.open(uploaded_file).convert("RGBA" if output_format=="PNG" else "RGB")
-                except Exception as e:
-                    st.error(f"Ошибка открытия файла {uploaded_file.name}: {e}")
-                    continue
-
                 for size_info in sizes:
-                    try:
-                        filename_base = f"{original_name}_{size_info['name']}_{size_info['size'][0]}x{size_info['size'][1]}"
-                        filename_base = "".join(c for c in filename_base if c.isalnum() or c in "._- ").strip()
-
-                        if preserve_aspect:
-                            resized_img = resize_with_aspect(image, size_info["size"])
-                        else:
-                            resized_img = resize_with_crop(image, size_info["size"])
-
-                        if output_format in ["JPEG", "WEBP"] and resized_img.mode != "RGB":
-                            resized_img = resized_img.convert("RGB")
-
-                        img_bytes = io.BytesIO()
-                        save_params = {'quality': quality} if output_format in ["JPEG", "WEBP"] else {}
-                        resized_img.save(img_bytes, format=output_format, **save_params)
-                        data = img_bytes.getvalue()
-
-                        filename = f"{filename_base}.{output_format.lower()}"
+                    tasks.append((uploaded_file, size_info, output_format, quality, preserve_aspect))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                results = list(executor.map(process_single_image, tasks))
+                for idx, result in enumerate(results):
+                    if result:
+                        filename, data = result
                         zipf.writestr(filename, data)
                         individual_files.append((filename, data))
-                        progress.progress((len(individual_files) + len(sizes)*(list(files).index(uploaded_file))) / total_tasks)
-                    except Exception as e:
-                        st.error(f"Ошибка обработки {size_info['name']} для файла {uploaded_file.name}: {e}")
-                        continue
+                    progress.progress((idx + 1) / total_tasks)
         status_message.text("✅ Обработка завершена!")
 
         zip_buffer.seek(0)
-        zip_bytes = zip_buffer.getvalue()
-        return zip_bytes, individual_files
+        return zip_buffer.getvalue(), individual_files
 
     # ===================== НАСТРОЙКИ =====================
 
@@ -133,16 +137,32 @@ def run_app():
     st.markdown("<h1 class='main-header'>ImageMagic Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p class='sub-header'>Конвертер изображений для маркетплейсов</p>", unsafe_allow_html=True)
 
+    # Стандартные размеры для маркетплейсов
+    standard_sizes = {
+        "Яндекс.Маркет": ["512x512", "1024x1024"],
+        "Ozon": ["600x600", "1200x1200"],
+        "Wildberries": ["600x600", "1000x1000"],
+        "AliExpress": ["800x800", "1600x1600"],
+        "Общие": ["512x512", "1024x1024", "800x800"]
+    }
+
     # Настройки
     with st.sidebar:
         st.header("Настройки")
         output_format = st.selectbox("Формат сохраняемых изображений", ["JPEG", "PNG", "WEBP"])
         quality = st.slider("Качество изображения (%)", 1, 100, 85)
         preserve_aspect = st.checkbox("Сохранять пропорции при изменении размера", value=True)
+
+        # Выбор предустановленных размеров
+        preset = st.selectbox("Выберите стандартный набор размеров", list(standard_sizes.keys()))
         sizes_input = st.text_area(
-            "Введите размеры через запятую (например: 512x512,1024x1024)",
-            value="512x512,1024x1024"
+            "Или введите свои размеры через запятую (например: 512x512,1024x1024)",
+            value=", ".join(standard_sizes[preset])
         )
+
+        # Обработка выбора
+        if preset != "Общие" and not sizes_input.strip():
+            sizes_input = ", ".join(standard_sizes[preset])
         sizes = parse_sizes(sizes_input)
 
     # Основная часть
