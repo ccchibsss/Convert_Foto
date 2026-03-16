@@ -1,26 +1,7 @@
-# requirements.txt
-
-# Основные библиотеки
 streamlit
 pillow
 numpy
 pandas
 openpyxl
-
-# Работа с изображениями
-imageio
-scikit-image
-opencv-python
-
-# Генерация кодов
 qrcode
 python-barcode
-
-# Работа с Excel
-xlrd
-xlsxwriter0
-
-# Дополнительные утилиты
-python-magic
-requests
-colorama
