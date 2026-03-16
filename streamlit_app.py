@@ -1,245 +1,355 @@
 import streamlit as st
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 import io
-from datetime import datetime
 import zipfile
-from pathlib import Path
-import concurrent.futures
+import os
+from datetime import datetime
 
-def run_app():
-    # ===================== ФУНКЦИИ =====================
-
-    def resize_with_crop(image, target_size):
-        target_width, target_height = target_size
-        image_ratio = image.width / image.height
-        target_ratio = target_width / target_height
-
-        if image_ratio > target_ratio:
-            new_height = target_height
-            new_width = int(new_height * image_ratio)
-        else:
-            new_width = target_width
-            new_height = int(new_width / image_ratio)
-
-        resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        left = (new_width - target_width) // 2
-        top = (new_height - target_height) // 2
-        right = left + target_width
-        bottom = top + target_height
-        return resized.crop((left, top, right, bottom))
-
-    def resize_with_aspect(image, target_size):
-        target_width, target_height = target_size
-        original_width, original_height = image.size
-        ratio = min(target_width / original_width, target_height / original_height)
-        new_size = (int(original_width * ratio), int(original_height * ratio))
-        resized_image = image.resize(new_size, Image.Resampling.LANCZOS)
-        new_image = Image.new("RGB", (target_width, target_height), (255, 255, 255))
-        paste_x = (target_width - new_size[0]) // 2
-        paste_y = (target_height - new_size[1]) // 2
-        new_image.paste(resized_image, (paste_x, paste_y))
-        return new_image
-
-    def parse_sizes(sizes_input):
-        sizes = []
-        for size_str in sizes_input.split(","):
-            size_str = size_str.strip()
-            if "x" in size_str:
-                parts = size_str.lower().split("x")
-                if len(parts) == 2:
-                    try:
-                        w, h = int(parts[0]), int(parts[1])
-                        sizes.append({"name": size_str, "size": (w, h)})
-                    except:
-                        continue
-        return sizes
-
-    def add_frame(image, frame_thickness, frame_color):
-        width, height = image.size
-        new_width = width + 2 * frame_thickness
-        new_height = height + 2 * frame_thickness
-        framed_img = Image.new("RGB", (new_width, new_height), frame_color)
-        framed_img.paste(image, (frame_thickness, frame_thickness))
-        return framed_img
-
-    def rotate_flip(image, rotate_angle, flip_horizontal, flip_vertical):
-        if rotate_angle != 0:
-            image = image.rotate(rotate_angle, expand=True)
-        if flip_horizontal:
-            image = ImageOps.mirror(image)
-        if flip_vertical:
-            image = ImageOps.flip(image)
-        return image
-
-    def apply_filters(image, brightness=1.0, contrast=1.0, sharpness=1.0):
-        enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(brightness)
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(contrast)
-        enhancer = ImageEnhance.Sharpness(image)
-        image = enhancer.enhance(sharpness)
-        return image
-
-    def process_single_image(args):
-        (uploaded_file, size_info, output_format, quality, preserve_aspect,
-         rotate_angle, flip_horizontal, flip_vertical,
-         brightness, contrast, sharpness,
-         frame_thickness, frame_color) = args
-        filename_base = f"{Path(uploaded_file.name).stem}_{size_info['name']}_{size_info['size'][0]}x{size_info['size'][1]}"
-        filename_base = "".join(c for c in filename_base if c.isalnum() or c in "._- ").strip()
-
-        try:
-            image = Image.open(uploaded_file).convert("RGBA" if output_format=="PNG" else "RGB")
-            # Основные преобразования
-            if preserve_aspect:
-                resized_img = resize_with_aspect(image, size_info["size"])
-            else:
-                resized_img = resize_with_crop(image, size_info["size"])
-
-            # Поворот и отражение
-            resized_img = rotate_flip(resized_img, rotate_angle, flip_horizontal, flip_vertical)
-
-            # Фильтры
-            resized_img = apply_filters(resized_img, brightness, contrast, sharpness)
-
-            # Добавление рамки
-            if frame_thickness > 0:
-                resized_img = add_frame(resized_img, frame_thickness, frame_color)
-
-            # Конвертация формата
-            if output_format in ["JPEG", "WEBP"] and resized_img.mode != "RGB":
-                resized_img = resized_img.convert("RGB")
-
-            # Сохранение
-            img_bytes = io.BytesIO()
-            save_params = {'quality': quality} if output_format in ["JPEG", "WEBP"] else {}
-            resized_img.save(img_bytes, format=output_format, **save_params)
-            data = img_bytes.getvalue()
-
-            filename = f"{filename_base}.{output_format.lower()}"
-            return filename, data
-        except Exception as e:
+def validate_image_size(size_str):
+    """Валидация формата размера"""
+    try:
+        if 'x' not in size_str:
             return None
+        w, h = size_str.split('x')
+        w, h = int(w.strip()), int(h.strip())
+        if w <= 0 or h <= 0 or w > 10000 or h > 10000:
+            return None
+        return (w, h)
+    except:
+        return None
 
-    def process_images(files, sizes, output_format, quality, preserve_aspect,
-                       rotate_angle, flip_horizontal, flip_vertical,
-                       brightness, contrast, sharpness,
-                       frame_thickness, frame_color):
-        total_tasks = len(files) * len(sizes)
-        progress = st.progress(0)
-        status_message = st.empty()
+def get_marketplace_presets():
+    """Пресеты размеров для популярных маркетплейсов"""
+    return {
+        "Wildberries (Фото товара)": "900x1200",
+        "Wildberries (Баннер)": "1280x400",
+        "Ozon (Основное фото)": "1080x1080",
+        "Ozon (Галерея)": "900x1200",
+        "Яндекс.Маркет": "1000x1000",
+        "СберМегаМаркет": "1200x1200",
+        "AliExpress": "800x800"
+    }
 
-        zip_buffer = io.BytesIO()
-        individual_files = []
+def optimize_for_marketplace(img, marketplace_type):
+    """Специфическая оптимизация для конкретного маркетплейса"""
+    if marketplace_type == "Wildberries":
+        # Wildberries требует белый фон для некоторых категорий
+        if st.session_state.get('add_white_bg', False):
+            img = add_white_background(img)
+    
+    elif marketplace_type == "Ozon":
+        # Ozon рекомендует квадратные фото для галереи
+        if img.width != img.height:
+            # Делаем изображение квадратным с белыми полями
+            max_size = max(img.width, img.height)
+            new_img = Image.new('RGB', (max_size, max_size), 'white')
+            offset = ((max_size - img.width) // 2, (max_size - img.height) // 2)
+            new_img.paste(img, offset)
+            img = new_img
+    
+    return img
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            tasks = []
-            for uploaded_file in files:
-                for size_info in sizes:
-                    tasks.append((uploaded_file, size_info, output_format, quality, preserve_aspect,
-                                  rotate_angle, flip_horizontal, flip_vertical,
-                                  brightness, contrast, sharpness,
-                                  frame_thickness, frame_color))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                results = list(executor.map(process_single_image, tasks))
-                for idx, result in enumerate(results):
-                    if result:
-                        filename, data = result
-                        zipf.writestr(filename, data)
-                        individual_files.append((filename, data))
-                    progress.progress((idx + 1) / total_tasks)
-        status_message.text("✅ Обработка завершена!")
+def add_white_background(img):
+    """Добавление белого фона для изображений с прозрачностью"""
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        background = Image.new('RGB', img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+        return background
+    return img
 
-        zip_buffer.seek(0)
-        return zip_buffer.getvalue(), individual_files
+def auto_enhance_for_marketplace(img):
+    """Автоматическое улучшение изображения для маркетплейсов"""
+    # Улучшение контраста для лучшей видимости
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(1.1)
+    
+    # Улучшение резкости
+    enhancer = ImageEnhance.Sharpness(img)
+    img = enhancer.enhance(1.2)
+    
+    # Улучшение насыщенности
+    enhancer = ImageEnhance.Color(img)
+    img = enhancer.enhance(1.05)
+    
+    return img
 
-    # ===================== НАСТРОЙКИ =====================
+def process_single_image(uploaded_file, size_info, output_format, quality, preserve_aspect,
+                         rotate_angle, flip_horizontal, flip_vertical,
+                         brightness, contrast, sharpness,
+                         frame_thickness, frame_color,
+                         add_white_bg=False, auto_enhance=False, marketplace_preset=None):
+    try:
+        # Открываем изображение
+        img = Image.open(uploaded_file)
+        
+        # Конвертируем в RGB если нужно
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        
+        # Добавление белого фона для PNG с прозрачностью
+        if add_white_bg:
+            img = add_white_background(img)
+        
+        # Автоулучшение для маркетплейсов
+        if auto_enhance:
+            img = auto_enhance_for_marketplace(img)
+        
+        # Применяем трансформации
+        if rotate_angle != 0:
+            img = img.rotate(rotate_angle, expand=True, fillcolor='white')
+        
+        if flip_horizontal:
+            img = ImageOps.mirror(img)
+        if flip_vertical:
+            img = ImageOps.flip(img)
+        
+        # Изменяем размер
+        target_size = size_info["size"]
+        if preserve_aspect:
+            img.thumbnail(target_size, Image.Resampling.LANCZOS)
+            # Добавляем белые поля для точного соответствия размеру
+            new_img = Image.new('RGB', target_size, 'white')
+            offset = ((target_size[0] - img.width) // 2, (target_size[1] - img.height) // 2)
+            new_img.paste(img, offset)
+            img = new_img
+        else:
+            img = img.resize(target_size, Image.Resampling.LANCZOS)
+        
+        # Применяем улучшения
+        if brightness != 1.0:
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(brightness)
+        
+        if contrast != 1.0:
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(contrast)
+        
+        if sharpness != 1.0:
+            enhancer = ImageEnhape.Sharpness(img)
+            img = enhancer.enhance(sharpness)
+        
+        # Добавляем рамку
+        if frame_thickness > 0:
+            img = ImageOps.expand(img, border=frame_thickness, fill=frame_color)
+        
+        # Сохраняем в байты
+        img_bytes = io.BytesIO()
+        save_params = {}
+        if output_format in ["JPEG", "WEBP"]:
+            save_params = {'quality': quality, 'optimize': True}
+        
+        # Для JPEG всегда сохраняем как RGB
+        if output_format == "JPEG" and img.mode == "RGBA":
+            img = img.convert('RGB')
+        
+        img.save(img_bytes, format=output_format, **save_params)
+        data = img_bytes.getvalue()
+        
+        # Генерируем имя файла
+        base_name = os.path.splitext(uploaded_file.name)[0]
+        size_name = size_info["name"].replace('x', '_')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{base_name}_{size_name}_{timestamp}.{output_format.lower()}"
+        
+        return filename, data
+        
+    except Exception as e:
+        st.error(f"Ошибка при обработке {uploaded_file.name}: {str(e)}")
+        return None
 
+def main():
     st.set_page_config(
-        page_title="ImageMagic Pro - Многофункциональный редактор",
-        page_icon="✨",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        page_title="Оптимизатор изображений для маркетплейсов",
+        page_icon="🛍️",
+        layout="wide"
     )
-
-    # CSS стили
-    st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #FF4B4B;
-        text-align: center;
-        margin-bottom: 0;
-    }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-top: 0;
-        margin-bottom: 2rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Заголовки
-    st.markdown("<h1 class='main-header'>ImageMagic Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-header'>Многофункциональный редактор изображений</p>", unsafe_allow_html=True)
-
-    # В боковой панели
-    with st.sidebar:
-        st.header("Настройки обработки")
-        output_format = st.selectbox("Формат выхода", ["JPEG", "PNG", "WEBP"])
-        quality = st.slider("Качество", 1, 100, 85)
-        preserve_aspect = st.checkbox("Сохранять пропорции", value=True)
-
-        st.header("Трансформации")
-        rotate_angle = st.slider("Поворот (градусы)", 0, 360, 0)
-        flip_horizontal = st.checkbox("Отразить по горизонтали")
-        flip_vertical = st.checkbox("Отразить по вертикали")
-
-        st.header("Фильтры")
-        brightness = st.slider("Яркость", 0.1, 3.0, 1.0, step=0.1)
-        contrast = st.slider("Контрастность", 0.1, 3.0, 1.0, step=0.1)
-        sharpness = st.slider("Резкость", 0.1, 3.0, 1.0, step=0.1)
-
-        st.header("Добавление рамки")
-        frame_thickness = st.slider("Толщина рамки (пиксели)", 0, 50, 0)
-        frame_color = st.color_picker("Цвет рамки", "#000000")
-
-        st.header("Размеры для обработки")
-        sizes_input = st.text_area("Введите размеры (через запятую, например, 600x600, 800x800)", value="600x600, 800x800")
-        sizes = parse_sizes(sizes_input)
-
-    # Загрузка изображений
-    st.write("Загрузите изображения для обработки:")
-    uploaded_files = st.file_uploader("Выберите файлы", accept_multiple_files=True, type=["png", "jpg", "jpeg", "webp"])
-
-    # Обработка
-    if uploaded_files and sizes:
-        zip_bytes, individual_files = process_images(
-            uploaded_files, sizes, output_format, quality, preserve_aspect,
-            rotate_angle, flip_horizontal, flip_vertical,
-            brightness, contrast, sharpness,
-            frame_thickness, frame_color
+    
+    st.title("🛍️ Оптимизатор изображений для маркетплейсов")
+    st.markdown("---")
+    
+    # Инициализация session state
+    if 'add_white_bg' not in st.session_state:
+        st.session_state.add_white_bg = False
+    
+    # Основной контент в две колонки
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.header("📁 Загрузка изображений")
+        uploaded_files = st.file_uploader(
+            "Выберите изображения (PNG, JPG, JPEG)",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True
         )
-
-        # Скачивание ZIP
-        st.download_button(
-            label="📥 Скачать ZIP архив",
-            data=zip_bytes,
-            file_name=f"images_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-            mime="application/zip"
+        
+        if uploaded_files:
+            st.success(f"Загружено: {len(uploaded_files)} файлов")
+            # Превью первого изображения
+            if len(uploaded_files) > 0:
+                preview_img = Image.open(uploaded_files[0])
+                st.image(preview_img, caption="Пример загруженного изображения", width=300)
+    
+    with col2:
+        st.header("⚙️ Настройки обработки")
+        
+        # Пресеты маркетплейсов
+        marketplace_presets = get_marketplace_presets()
+        selected_preset = st.selectbox(
+            "Пресет маркетплейса",
+            ["Выберите пресет"] + list(marketplace_presets.keys())
         )
-
-        # Отдельные файлы
-        st.write("Или скачайте отдельные файлы:")
-        for filename, data in individual_files:
-            st.download_button(
-                label=f"📥 {filename}",
-                data=data,
-                file_name=filename,
-                mime="image/*"
+        
+        if selected_preset != "Выберите пресет":
+            preset_size = marketplace_presets[selected_preset]
+            st.info(f"Рекомендуемый размер: {preset_size}")
+        
+        # Основные настройки
+        output_format = st.selectbox(
+            "Формат вывода",
+            ["JPEG", "PNG", "WEBP"],
+            help="JPEG - лучший выбор для фото, PNG - для изображений с текстом, WEBP - современный формат"
+        )
+        
+        quality = st.slider(
+            "Качество (для JPEG/WEBP)",
+            1, 100, 85,
+            help="Более высокое качество = больший размер файла"
+        )
+        
+        # Выбор размеров
+        st.subheader("📐 Размеры")
+        size_option = st.radio(
+            "Способ задания размеров",
+            ["Ввести вручную", "Использовать пресеты"]
+        )
+        
+        sizes_list = []
+        if size_option == "Использовать пресеты":
+            selected_sizes = st.multiselect(
+                "Выберите размеры",
+                list(marketplace_presets.values()),
+                default=["900x1200"]
             )
+            for size_str in selected_sizes:
+                size_tuple = validate_image_size(size_str)
+                if size_tuple:
+                    sizes_list.append({"name": size_str.replace('x', '×'), "size": size_tuple})
+        else:
+            sizes_input = st.text_input(
+                "Размеры (через запятую, например: 800x600, 1024x768)",
+                "800x800, 900x1200, 1080x1080"
+            )
+            for size_str in sizes_input.split(","):
+                size_tuple = validate_image_size(size_str)
+                if size_tuple:
+                    sizes_list.append({"name": size_str.strip().replace('x', '×'), "size": size_tuple})
+        
+        if not sizes_list:
+            st.warning("⚠️ Пожалуйста, введите корректные размеры")
+            return
+    
+    # Расширенные настройки в сайдбаре
+    with st.sidebar:
+        st.header("🎨 Расширенные настройки")
+        
+        st.subheader("Оптимизация для маркетплейсов")
+        add_white_bg = st.checkbox(
+            "Добавить белый фон",
+            value=True,
+            help="Удаляет прозрачность и добавляет белый фон"
+        )
+        st.session_state.add_white_bg = add_white_bg
+        
+        auto_enhance = st.checkbox(
+            "Автоулучшение",
+            value=True,
+            help="Автоматическая оптимизация контраста, резкости и цвета"
+        )
+        
+        st.subheader("Трансформации")
+        preserve_aspect = st.checkbox("Сохранять пропорции", value=True)
+        rotate_angle = st.slider("Поворот (градусы)", -180, 180, 0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            flip_horizontal = st.checkbox("Отразить по горизонтали")
+        with col2:
+            flip_vertical = st.checkbox("Отразить по вертикали")
+        
+        st.subheader("Коррекция изображения")
+        brightness = st.slider("Яркость", 0.1, 3.0, 1.0, 0.1)
+        contrast = st.slider("Контраст", 0.1, 3.0, 1.0, 0.1)
+        sharpness = st.slider("Резкость", 0.1, 3.0, 1.0, 0.1)
+        
+        st.subheader("Рамка")
+        frame_thickness = st.slider("Толщина рамки", 0, 50, 0)
+        if frame_thickness > 0:
+            frame_color = st.color_picker("Цвет рамки", "#FFFFFF")
+        else:
+            frame_color = "#FFFFFF"
+    
+    # Обработка изображений
+    if uploaded_files and sizes_list:
+        st.markdown("---")
+        st.header("🔄 Обработка")
+        
+        if st.button("🚀 Начать обработку", type="primary"):
+            with st.spinner("Обработка изображений..."):
+                all_files = []
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                total_tasks = len(uploaded_files) * len(sizes_list)
+                completed = 0
+                
+                for uploaded_file in uploaded_files:
+                    for size_info in sizes_list:
+                        status_text.text(f"Обработка: {uploaded_file.name} -> {size_info['name']}")
+                        
+                        result = process_single_image(
+                            uploaded_file, size_info, output_format, quality, preserve_aspect,
+                            rotate_angle, flip_horizontal, flip_vertical,
+                            brightness, contrast, sharpness,
+                            frame_thickness, frame_color,
+                            add_white_bg, auto_enhance, selected_preset
+                        )
+                        
+                        if result:
+                            filename, data = result
+                            all_files.append((filename, data))
+                        
+                        completed += 1
+                        progress_bar.progress(completed / total_tasks)
+                
+                if all_files:
+                    # Создаем ZIP архив
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                        for filename, data in all_files:
+                            zip_file.writestr(filename, data)
+                    
+                    zip_buffer.seek(0)
+                    
+                    st.success(f"✅ Готово! Обработано {len(all_files)} изображений")
+                    
+                    # Информация о результате
+                    total_size_mb = len(zip_buffer.getvalue()) / (1024 * 1024)
+                    st.info(f"📦 Размер архива: {total_size_mb:.2f} MB")
+                    
+                    # Кнопка скачивания
+                    st.download_button(
+                        label="📥 Скачать ZIP архив",
+                        data=zip_buffer,
+                        file_name=f"images_for_marketplace_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                        mime="application/zip"
+                    )
+                else:
+                    st.error("❌ Не удалось обработать изображения")
+    
+    elif uploaded_files and not sizes_list:
+        st.info("📏 Пожалуйста, укажите размеры изображений")
+    else:
+        st.info("📁 Загрузите изображения для начала работы")
 
 if __name__ == "__main__":
-    run_app()
+    main()
