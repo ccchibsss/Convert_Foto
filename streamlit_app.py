@@ -146,6 +146,10 @@ def run_app():
         "Общие": ["512x512", "1024x1024", "800x800"]
     }
 
+    # Выбор предустановленного набора размеров по умолчанию
+    default_preset = "Общие"
+    default_sizes = standard_sizes[default_preset]
+
     # Настройки
     with st.sidebar:
         st.header("Настройки")
@@ -153,16 +157,10 @@ def run_app():
         quality = st.slider("Качество изображения (%)", 1, 100, 85)
         preserve_aspect = st.checkbox("Сохранять пропорции при изменении размера", value=True)
 
-        # Выбор предустановленных размеров
-        preset = st.selectbox("Выберите стандартный набор размеров", list(standard_sizes.keys()))
-        sizes_input = st.text_area(
-            "Или введите свои размеры через запятую (например: 512x512,1024x1024)",
-            value=", ".join(standard_sizes[preset])
-        )
+        # Предустановленный размер
+        preset = st.selectbox("Выберите стандартный набор размеров", list(standard_sizes.keys()), index=list(standard_sizes.keys()).index(default_preset))
+        sizes_input = ", ".join(standard_sizes[preset])
 
-        # Обработка выбора
-        if preset != "Общие" and not sizes_input.strip():
-            sizes_input = ", ".join(standard_sizes[preset])
         sizes = parse_sizes(sizes_input)
 
     # Основная часть
