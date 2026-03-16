@@ -348,56 +348,41 @@ st.markdown("""
 # ================ ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ================
 def init_session_state():
     """Инициализация состояния сессии"""
-    
     # Изображения
     if 'images' not in st.session_state:
         st.session_state.images = []
-    
     if 'processed_images' not in st.session_state:
         st.session_state.processed_images = []
-    
     if 'current_image_index' not in st.session_state:
         st.session_state.current_image_index = 0
-    
     # Данные из Excel
     if 'excel_data' not in st.session_state:
         st.session_state.excel_data = None
-    
     if 'excel_df' not in st.session_state:
         st.session_state.excel_df = None
-    
     if 'selected_columns' not in st.session_state:
         st.session_state.selected_columns = []
-    
     if 'data_elements' not in st.session_state:
         st.session_state.data_elements = []
-    
     # Настройки фона
     if 'background_type' not in st.session_state:
         st.session_state.background_type = 'color'  # color, gradient, pattern, image
-    
     if 'background_color' not in st.session_state:
         st.session_state.background_color = '#667eea'
-    
     if 'background_gradient' not in st.session_state:
         st.session_state.background_gradient = {
             'type': 'linear',
             'colors': ['#667eea', '#764ba2'],
             'angle': 45
         }
-    
     if 'background_pattern' not in st.session_state:
         st.session_state.background_pattern = 'dots'
-    
     if 'background_image' not in st.session_state:
         st.session_state.background_image = None
-    
     if 'background_opacity' not in st.session_state:
         st.session_state.background_opacity = 1.0
-    
     if 'background_blur' not in st.session_state:
         st.session_state.background_blur = 0
-    
     # Настройки текста
     if 'text_settings' not in st.session_state:
         st.session_state.text_settings = {
@@ -409,33 +394,24 @@ def init_session_state():
             'alignment': 'center',
             'opacity': 1.0
         }
-    
     # UI состояние
     if 'selected_element' not in st.session_state:
         st.session_state.selected_element = None
-    
     if 'mouse_mode' not in st.session_state:
         st.session_state.mouse_mode = 'move'  # move, resize, rotate
-    
     if 'show_grid' not in st.session_state:
         st.session_state.show_grid = False
-    
     if 'snap_to_grid' not in st.session_state:
         st.session_state.snap_to_grid = True
-    
     if 'grid_size' not in st.session_state:
         st.session_state.grid_size = 20
-    
     # Пакетная обработка
     if 'batch_queue' not in st.session_state:
         st.session_state.batch_queue = queue.Queue()
-    
     if 'processing' not in st.session_state:
         st.session_state.processing = False
-    
     if 'progress' not in st.session_state:
         st.session_state.progress = 0
-    
     if 'total_files' not in st.session_state:
         st.session_state.total_files = 0
 
@@ -524,141 +500,100 @@ FONT_FAMILIES = {
 # ================ ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ================
 def create_background(width, height, settings):
     """Создание фона на основе настроек"""
-    
     background_type = settings.get('type', 'color')
-    
     if background_type == 'color':
-        # Однотонный фон
         return Image.new('RGBA', (width, height), settings.get('color', '#667eea'))
-    
     elif background_type == 'gradient':
-        # Градиентный фон
         return create_gradient_background(width, height, settings.get('gradient', {}))
-    
     elif background_type == 'pattern':
-        # Паттерн
-        return create_pattern_background(width, height, settings.get('pattern', 'dots'), 
-                                       settings.get('pattern_color', '#667eea'),
-                                       settings.get('bg_color', '#FFFFFF'))
-    
+        return create_pattern_background(width, height, settings.get('pattern', 'dots'),
+                                         settings.get('pattern_color', '#667eea'),
+                                         settings.get('bg_color', '#FFFFFF'))
     elif background_type == 'image' and settings.get('image'):
-        # Изображение как фон
         bg_img = settings['image'].copy()
         bg_img = bg_img.resize((width, height), Image.Resampling.LANCZOS)
-        
-        # Применяем эффекты
         if settings.get('blur', 0) > 0:
             bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=settings['blur']))
-        
         if settings.get('opacity', 1.0) < 1.0:
-            bg_img.putalpha(int(255 * settings['opacity']))
-        
+            alpha = bg_img.getchannel('L')
+            alpha = alpha.point(lambda p: int(p * settings['opacity']))
+            bg_img.putalpha(alpha)
         return bg_img
-    
     return Image.new('RGBA', (width, height), '#FFFFFF')
 
 def create_gradient_background(width, height, gradient_settings):
     """Создание градиентного фона"""
-    
     gradient_type = gradient_settings.get('type', 'linear')
     colors = gradient_settings.get('colors', ['#667eea', '#764ba2'])
     angle = gradient_settings.get('angle', 45)
-    
-    img = Image.new('RGBA', (width, height), colors[0])
+    img = Image.new('RGBA', (width, height))
     draw = ImageDraw.Draw(img)
-    
     if gradient_type == 'linear':
         # Линейный градиент
         rad = math.radians(angle)
-        dx = math.cos(rad) * width
-        dy = math.sin(rad) * height
-        
-        x1, y1 = width // 2 - dx // 2, height // 2 - dy // 2
-        x2, y2 = x1 + dx, y1 + dy
-        
+        dx = math.cos(rad)
+        dy = math.sin(rad)
         for i in range(width):
-            for j in range(height):
-                # Вычисляем расстояние до линии градиента
-                t = ((i - x1) * dx + (j - y1) * dy) / (dx*dx + dy*dy)
-                t = max(0, min(1, t))
-                
-                # Интерполируем цвет
-                idx = t * (len(colors) - 1)
-                idx1 = int(idx)
-                idx2 = min(idx1 + 1, len(colors) - 1)
-                local_t = idx - idx1
-                
-                color1 = hex_to_rgb(colors[idx1])
-                color2 = hex_to_rgb(colors[idx2])
-                
-                r = int(color1[0] * (1 - local_t) + color2[0] * local_t)
-                g = int(color1[1] * (1 - local_t) + color2[1] * local_t)
-                b = int(color1[2] * (1 - local_t) + color2[2] * local_t)
-                
-                draw.point((i, j), fill=(r, g, b))
-    
+            t = (i / width)
+            color = interpolate_colors(colors, t)
+            draw.line((i, 0, i, height), fill=color)
     elif gradient_type == 'radial':
         # Радиальный градиент
-        center_x, center_y = width // 2, height // 2
-        max_dist = math.sqrt(center_x**2 + center_y**2)
-        
-        for i in range(width):
-            for j in range(height):
-                dist = math.sqrt((i - center_x)**2 + (j - center_y)**2)
+        center_x, center_y = width / 2, height / 2
+        max_dist = math.hypot(center_x, center_y)
+        for y in range(height):
+            for x in range(width):
+                dist = math.hypot(x - center_x, y - center_y)
                 t = dist / max_dist
-                
-                idx = t * (len(colors) - 1)
-                idx1 = int(idx)
-                idx2 = min(idx1 + 1, len(colors) - 1)
-                local_t = idx - idx1
-                
-                color1 = hex_to_rgb(colors[idx1])
-                color2 = hex_to_rgb(colors[idx2])
-                
-                r = int(color1[0] * (1 - local_t) + color2[0] * local_t)
-                g = int(color1[1] * (1 - local_t) + color2[1] * local_t)
-                b = int(color1[2] * (1 - local_t) + color2[2] * local_t)
-                
-                draw.point((i, j), fill=(r, g, b))
-    
+                color = interpolate_colors(colors, t)
+                draw.point((x, y), fill=color)
     return img
+
+def interpolate_colors(colors, t):
+    """Интерполяция цветов по t"""
+    if len(colors) == 1:
+        return colors[0]
+    # Для двух цветов
+    if len(colors) == 2:
+        c1 = hex_to_rgb(colors[0])
+        c2 = hex_to_rgb(colors[1])
+        r = int(c1[0] + (c2[0] - c1[0]) * t)
+        g = int(c1[1] + (c2[1] - c1[1]) * t)
+        b = int(c1[2] + (c2[2] - c1[2]) * t)
+        return (r, g, b)
+    # Для нескольких цветов - просто берем два ближайших
+    n = len(colors)
+    idx = int(t * (n - 1))
+    t_local = t * (n - 1) - idx
+    c1 = hex_to_rgb(colors[idx])
+    c2 = hex_to_rgb(colors[min(idx + 1, n - 1)])
+    r = int(c1[0] + (c2[0] - c1[0]) * t_local)
+    g = int(c1[1] + (c2[1] - c1[1]) * t_local)
+    b = int(c1[2] + (c2[2] - c1[2]) * t_local)
+    return (r, g, b)
 
 def create_pattern_background(width, height, pattern_type, color, bg_color):
     """Создание фона с паттерном"""
-    
     img = Image.new('RGBA', (width, height), bg_color)
     draw = ImageDraw.Draw(img)
-    
     pattern_color = hex_to_rgb(color)
-    bg_rgb = hex_to_rgb(bg_color)
-    
-    size = 40  # Размер элемента паттерна
-    
+    size = 40
     if pattern_type == 'dots':
-        # Точки
         for x in range(0, width, size):
             for y in range(0, height, size):
                 draw.ellipse([x-3, y-3, x+3, y+3], fill=pattern_color)
-    
     elif pattern_type == 'lines':
-        # Линии
         for x in range(0, width, size//2):
             draw.line([(x, 0), (x, height)], fill=pattern_color, width=2)
-    
     elif pattern_type == 'grid':
-        # Сетка
         for x in range(0, width, size):
             draw.line([(x, 0), (x, height)], fill=pattern_color, width=1)
         for y in range(0, height, size):
             draw.line([(0, y), (width, y)], fill=pattern_color, width=1)
-    
     elif pattern_type == 'stripes':
-        # Полосы
         for i in range(-height, width, size):
             draw.line([(i, 0), (i + height, height)], fill=pattern_color, width=5)
-    
     elif pattern_type == 'chevron':
-        # Шеврон
         for x in range(-size, width, size):
             for y in range(0, height, size):
                 points = [
@@ -668,21 +603,15 @@ def create_pattern_background(width, height, pattern_type, color, bg_color):
                     (x + size//2, y + size)
                 ]
                 draw.polygon(points, outline=pattern_color)
-    
     elif pattern_type == 'circles':
-        # Круги
         for x in range(0, width, size):
             for y in range(0, height, size):
                 draw.ellipse([x, y, x+size-5, y+size-5], outline=pattern_color, width=2)
-    
     elif pattern_type == 'squares':
-        # Квадраты
         for x in range(0, width, size):
             for y in range(0, height, size):
                 draw.rectangle([x, y, x+size-5, y+size-5], outline=pattern_color, width=2)
-    
     elif pattern_type == 'triangles':
-        # Треугольники
         for x in range(0, width, size):
             for y in range(0, height, size):
                 points = [
@@ -691,11 +620,9 @@ def create_pattern_background(width, height, pattern_type, color, bg_color):
                     (x + size, y + size)
                 ]
                 draw.polygon(points, outline=pattern_color)
-    
     elif pattern_type == 'hexagons':
-        # Шестиугольники
-        for x in range(0, width, size):
-            for y in range(0, height, int(size * 0.866)):
+        for x in range(0, width, int(size * 0.866)):
+            for y in range(0, height, size):
                 points = []
                 for i in range(6):
                     angle = math.pi / 6 + i * math.pi / 3
@@ -703,9 +630,7 @@ def create_pattern_background(width, height, pattern_type, color, bg_color):
                     py = y + size * math.sin(angle)
                     points.append((px, py))
                 draw.polygon(points, outline=pattern_color)
-    
     elif pattern_type == 'stars':
-        # Звезды
         for x in range(0, width, size):
             for y in range(0, height, size):
                 points = []
@@ -714,14 +639,11 @@ def create_pattern_background(width, height, pattern_type, color, bg_color):
                     px = x + size//2 + (size//2) * math.cos(angle)
                     py = y + size//2 + (size//2) * math.sin(angle)
                     points.append((px, py))
-                    
                     angle2 = (i + 0.5) * 4 * math.pi / 5 - math.pi / 2
                     px2 = x + size//2 + (size//4) * math.cos(angle2)
                     py2 = y + size//2 + (size//4) * math.sin(angle2)
                     points.append((px2, py2))
-                
                 draw.polygon(points, outline=pattern_color)
-    
     return img
 
 def hex_to_rgb(hex_color):
@@ -736,13 +658,11 @@ def rgb_to_hex(rgb):
 # ================ ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ ИЗ EXCEL ================
 def load_excel_data(file):
     """Загрузка данных из Excel"""
-    
     try:
         if file.name.endswith('.csv'):
             df = pd.read_csv(file)
         else:
             df = pd.read_excel(file)
-        
         return df
     except Exception as e:
         st.error(f"Ошибка загрузки Excel: {str(e)}")
@@ -750,7 +670,6 @@ def load_excel_data(file):
 
 def create_data_element(value, column_name, index, settings):
     """Создание элемента данных для наложения"""
-    
     return {
         'id': f"element_{index}_{datetime.now().timestamp()}",
         'value': str(value),
@@ -775,7 +694,6 @@ def create_data_element(value, column_name, index, settings):
 
 def render_data_element(draw, element, x, y, width, height):
     """Отрисовка элемента данных на изображении"""
-    
     # Рисуем фон элемента
     if element.get('background'):
         bg_color = hex_to_rgb(element['background'])
@@ -784,134 +702,92 @@ def render_data_element(draw, element, x, y, width, height):
             radius=element.get('border_radius', 10),
             fill=(*bg_color, int(255 * element.get('opacity', 1.0)))
         )
-    
-    # Рисуем рамку
+    # Рамка
     if element.get('border'):
         border_color = hex_to_rgb(element['border']['color'])
         border_width = element['border'].get('width', 2)
-        
         for i in range(border_width):
             draw.rounded_rectangle(
                 [x + i, y + i, x + width - i, y + height - i],
                 radius=element.get('border_radius', 10),
                 outline=(*border_color, 255)
             )
-    
-    # Подготовка текста
+    # Текст
     text = element['value']
     font_family = element.get('font_family', 'Montserrat')
     font_size = element.get('font_size', 24)
     font_color = hex_to_rgb(element.get('font_color', '#FFFFFF'))
-    
-    # Создаем временный шрифт (в реальном коде нужно загрузить шрифт из файла)
     try:
         font = ImageFont.truetype("arial.ttf", font_size)
     except:
         font = ImageFont.load_default()
-    
-    # Применяем стили
-    if element.get('bold') or element.get('italic'):
-        # В реальном коде нужно загрузить соответствующий шрифт
-        pass
-    
-    # Получаем размеры текста
+    # Размер текста
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
-    
     # Выравнивание
     alignment = element.get('alignment', 'center')
     if alignment == 'left':
         text_x = x + 10
     elif alignment == 'right':
         text_x = x + width - text_width - 10
-    else:  # center
+    else:
         text_x = x + (width - text_width) // 2
-    
     text_y = y + (height - text_height) // 2
-    
     # Рисуем текст
     draw.text((text_x, text_y), text, font=font, fill=(*font_color, 255))
 
 # ================ ФУНКЦИИ ДЛЯ ПАКЕТНОЙ ОБРАБОТКИ ================
 def process_single_image_with_data(image_data, background_settings, data_elements, excel_df):
     """Обработка одного изображения с наложением данных"""
-    
     try:
         filename, image_bytes = image_data
-        
-        # Открываем изображение
         main_img = Image.open(io.BytesIO(image_bytes)).convert('RGBA')
-        
-        # Создаем фон
         bg_img = create_background(main_img.width, main_img.height, background_settings)
-        
-        # Накладываем основное изображение на фон
         if background_settings.get('type') != 'image':
-            # Если фон не изображение, накладываем основное изображение поверх
             result = bg_img.copy()
             result.paste(main_img, (0, 0), main_img)
         else:
-            # Если фон - изображение, используем его как основу
             result = bg_img.copy()
-            
-            # Центрируем основное изображение
             x = (result.width - main_img.width) // 2
             y = (result.height - main_img.height) // 2
             result.paste(main_img, (x, y), main_img)
-        
-        # Накладываем данные из Excel
         draw = ImageDraw.Draw(result)
-        
         for element in data_elements:
-            # Получаем актуальное значение из DataFrame если нужно
+            # Обновление значения из df, если нужно
             if excel_df is not None and element['column'] in excel_df.columns:
                 value = excel_df[element['column']].iloc[0]
                 element['value'] = str(value)
-            
             render_data_element(
-                draw, 
+                draw,
                 element,
                 element['x'],
                 element['y'],
                 element['width'],
                 element['height']
             )
-        
-        # Сохраняем
         output = io.BytesIO()
         result.save(output, format='PNG', quality=95, optimize=True)
         output.seek(0)
-        
         new_filename = f"processed_{filename}"
         if not new_filename.lower().endswith('.png'):
             new_filename = new_filename.rsplit('.', 1)[0] + '.png'
-        
         return (new_filename, output.getvalue())
-        
     except Exception as e:
         st.error(f"Ошибка обработки {filename}: {str(e)}")
         return None
 
 def process_batch_parallel(images, background_settings, data_elements, excel_df, max_workers=10):
     """Параллельная обработка пакета изображений"""
-    
     total = len(images)
     processed = []
     failed = []
-    
-    # Создаем данные для обработки
+    # подготовка данных
     image_data = [(img.name, img.getvalue()) for img in images]
-    
-    # Прогресс бар
     progress_bar = st.progress(0)
     status_text = st.empty()
-    
-    # Используем ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_single_image_with_data, data, background_settings, 
-                                  data_elements, excel_df): data[0] for data in image_data}
-        
+        futures = {executor.submit(process_single_image_with_data, data, background_settings, data_elements, excel_df): data[0] for data in image_data}
         completed = 0
         for future in as_completed(futures):
             filename = futures[future]
@@ -923,59 +799,36 @@ def process_batch_parallel(images, background_settings, data_elements, excel_df,
                     failed.append(filename)
             except Exception as e:
                 failed.append(filename)
-            
             completed += 1
             progress = completed / total
             progress_bar.progress(progress)
             status_text.text(f"🔄 Обработано: {completed}/{total} | ✅ Успешно: {len(processed)} | ❌ Ошибок: {len(failed)}")
-    
     return processed, failed
 
 # ================ БОКОВАЯ ПАНЕЛЬ С НАСТРОЙКАМИ ================
 def render_sidebar():
     """Отрисовка боковой панели с настройками"""
-    
     with st.sidebar:
         st.markdown('<div class="sidebar-gradient">', unsafe_allow_html=True)
         st.markdown("### 🎨 ПАНЕЛЬ УПРАВЛЕНИЯ")
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Вкладки в боковой панели
-        tab_bg, tab_data, tab_text, tab_settings = st.tabs([
-            "🎨 Фон", "📊 Данные", "📝 Текст", "⚙️ Настройки"
-        ])
-        
+        tab_bg, tab_data, tab_text, tab_settings = st.tabs(["🎨 Фон", "📊 Данные", "📝 Текст", "⚙️ Настройки"])
         with tab_bg:
             render_background_tab()
-        
         with tab_data:
             render_data_tab()
-        
         with tab_text:
             render_text_tab()
-        
         with tab_settings:
             render_settings_tab()
-        
         st.markdown("---")
-        
-        # Кнопка применения
         if st.button("🚀 ПРИМЕНИТЬ КО ВСЕМ", type="primary", use_container_width=True):
             return True
-        
         return False
 
 def render_background_tab():
     """Вкладка настроек фона"""
-    
-    # Тип фона
-    bg_type = st.radio(
-        "Тип фона",
-        ["Однотонный", "Градиент", "Паттерн", "Изображение"],
-        horizontal=True,
-        key="bg_type_radio"
-    )
-    
+    bg_type = st.radio("Тип фона", ["Однотонный", "Градиент", "Паттерн", "Изображение"], horizontal=True, key="bg_type_radio")
     bg_type_map = {
         "Однотонный": "color",
         "Градиент": "gradient",
@@ -983,46 +836,27 @@ def render_background_tab():
         "Изображение": "image"
     }
     st.session_state.background_type = bg_type_map[bg_type]
-    
     if st.session_state.background_type == 'color':
         render_color_background()
-    
     elif st.session_state.background_type == 'gradient':
         render_gradient_background()
-    
     elif st.session_state.background_type == 'pattern':
         render_pattern_background()
-    
     elif st.session_state.background_type == 'image':
         render_image_background()
-    
-    # Общие настройки фона
+    # Общие настройки
     st.markdown("#### ✨ Эффекты фона")
-    
     col_e1, col_e2 = st.columns(2)
     with col_e1:
-        st.session_state.background_opacity = st.slider(
-            "Прозрачность", 0.0, 1.0, st.session_state.background_opacity, 0.1
-        )
-    
+        st.session_state.background_opacity = st.slider("Прозрачность", 0.0, 1.0, st.session_state.background_opacity, 0.1)
     with col_e2:
-        st.session_state.background_blur = st.slider(
-            "Размытие", 0, 20, st.session_state.background_blur, 1
-        )
+        st.session_state.background_blur = st.slider("Размытие", 0, 20, st.session_state.background_blur, 1)
 
 def render_color_background():
     """Настройки однотонного фона"""
-    
     st.markdown("#### 🎨 Выберите цвет")
-    
-    # Быстрый выбор из палитр
-    palette_name = st.selectbox(
-        "Палитра",
-        list(COLOR_PALETTES.keys()),
-        format_func=lambda x: x.capitalize()
-    )
-    
-    # Отображение цветов палитры
+    palette_name = st.selectbox("Палитра", list(COLOR_PALETTES.keys()), index=0, format_func=lambda x: x.capitalize())
+    # отображение цветов палитры
     cols = st.columns(5)
     for i, color in enumerate(COLOR_PALETTES[palette_name][:5]):
         with cols[i]:
@@ -1033,27 +867,17 @@ def render_color_background():
                  onclick="alert('color_{color}')">
             </div>
             """, unsafe_allow_html=True)
-            
-            if st.button("✓", key=f"color_{i}", help=color):
+            if st.button("✓", key=f"color_{color}", help=color):
                 st.session_state.background_color = color
                 st.rerun()
-    
-    # Точный выбор
-    st.session_state.background_color = st.color_picker(
-        "Точный цвет",
-        st.session_state.background_color
-    )
+    # точный выбор
+    st.session_state.background_color = st.color_picker("Точный цвет", st.session_state.background_color)
 
 def render_gradient_background():
     """Настройки градиентного фона"""
-    
     st.markdown("#### 🌈 Готовые градиенты")
-    
-    # Пресеты градиентов
     for preset_id, preset in GRADIENT_PRESETS.items():
         is_selected = st.session_state.background_gradient.get('preset') == preset_id
-        
-        # Превью градиента
         gradient_css = f"linear-gradient({preset['angle']}deg, {', '.join(preset['colors'])})"
         st.markdown(f"""
         <div class="gradient-preview {'selected' if is_selected else ''}" 
@@ -1064,7 +888,6 @@ def render_gradient_background():
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
         if st.button(f"📌 {preset['name']}", key=f"gradient_{preset_id}", use_container_width=True):
             st.session_state.background_gradient = {
                 'type': 'linear',
@@ -1073,37 +896,23 @@ def render_gradient_background():
                 'preset': preset_id
             }
             st.rerun()
-    
+
     st.markdown("#### ✏️ Свой градиент")
-    
-    # Тип градиента
-    grad_type = st.radio(
-        "Тип",
-        ["Линейный", "Радиальный"],
-        horizontal=True
-    )
-    
-    # Цвета
+    grad_type = st.radio("Тип", ["Линейный", "Радиальный"], horizontal=True)
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         color1 = st.color_picker("Цвет 1", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[0])
     with col_c2:
         color2 = st.color_picker("Цвет 2", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[1])
-    
-    # Добавить еще цвет
     if st.checkbox("➕ Добавить цвет"):
         color3 = st.color_picker("Цвет 3", "#ff6b6b")
         colors = [color1, color2, color3]
     else:
         colors = [color1, color2]
-    
-    # Угол для линейного градиента
     if grad_type == "Линейный":
         angle = st.slider("Угол", 0, 360, st.session_state.background_gradient.get('angle', 45))
     else:
         angle = 0
-    
-    # Сохраняем настройки
     st.session_state.background_gradient = {
         'type': 'linear' if grad_type == "Линейный" else 'radial',
         'colors': colors,
@@ -1112,10 +921,7 @@ def render_gradient_background():
 
 def render_pattern_background():
     """Настройки паттерна"""
-    
     st.markdown("#### 🔷 Выберите паттерн")
-    
-    # Отображение паттернов сеткой
     pattern_cols = st.columns(3)
     for i, (pattern_id, pattern_name) in enumerate(PATTERNS.items()):
         with pattern_cols[i % 3]:
@@ -1127,111 +933,64 @@ def render_pattern_background():
                 {pattern_name.split()[0]}
             </div>
             """, unsafe_allow_html=True)
-            
             if st.button(pattern_name, key=f"pattern_{pattern_id}", use_container_width=True):
                 st.session_state.background_pattern = pattern_id
                 st.rerun()
-    
     st.markdown("#### 🎨 Цвета паттерна")
-    
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         pattern_color = st.color_picker("Цвет узора", "#667eea")
     with col_p2:
         bg_color = st.color_picker("Цвет фона", "#FFFFFF")
-    
     st.session_state.pattern_color = pattern_color
     st.session_state.pattern_bg_color = bg_color
 
 def render_image_background():
     """Настройки фона из изображения"""
-    
     st.markdown("#### 🖼️ Загрузите фоновое изображение")
-    
-    bg_image = st.file_uploader(
-        "Выберите изображение для фона",
-        type=['png', 'jpg', 'jpeg', 'webp'],
-        key="bg_image_uploader"
-    )
-    
+    bg_image = st.file_uploader("Выберите изображение для фона", type=['png', 'jpg', 'jpeg', 'webp'], key="bg_image_uploader")
     if bg_image:
         st.session_state.background_image = Image.open(bg_image)
         st.success(f"✅ Загружено: {bg_image.name}")
 
 def render_data_tab():
     """Вкладка работы с данными из Excel"""
-    
     st.markdown("#### 📊 Загрузка данных из Excel")
-    
-    excel_file = st.file_uploader(
-        "Выберите Excel файл",
-        type=['xlsx', 'xls', 'csv'],
-        key="excel_uploader"
-    )
-    
+    excel_file = st.file_uploader("Выберите Excel файл", type=['xlsx', 'xls', 'csv'], key="excel_uploader")
     if excel_file:
         df = load_excel_data(excel_file)
         if df is not None:
             st.session_state.excel_df = df
             st.success(f"✅ Загружено: {len(df)} строк, {len(df.columns)} колонок")
-            
-            # Предпросмотр данных
             with st.expander("👁️ Превью данных"):
                 st.dataframe(df.head(10), use_container_width=True)
-            
             st.markdown("#### 📌 Выберите колонки для отображения")
-            
-            # Выбор колонок
-            selected_cols = st.multiselect(
-                "Колонки",
-                df.columns.tolist(),
-                default=st.session_state.selected_columns
-            )
+            selected_cols = st.multiselect("Колонки", df.columns.tolist(), default=st.session_state.selected_columns)
             st.session_state.selected_columns = selected_cols
-            
-            # Настройки для каждой колонки
             if selected_cols:
                 st.markdown("#### ⚙️ Настройки отображения")
-                
                 for col in selected_cols:
                     with st.expander(f"📋 {col}"):
-                        # Превью значения
                         sample_value = df[col].iloc[0]
                         st.info(f"Пример: {sample_value}")
-                        
-                        # Позиция (будет управляться мышкой)
                         st.markdown("**Позиция** (будет задана мышкой)")
-                        
-                        # Размер
                         col_w, col_h = st.columns(2)
                         with col_w:
                             width = st.number_input(f"Ширина", 50, 500, 200, key=f"w_{col}")
                         with col_h:
                             height = st.number_input(f"Высота", 30, 300, 60, key=f"h_{col}")
-                        
-                        # Стиль
                         col_s1, col_s2 = st.columns(2)
                         with col_s1:
                             font_size = st.slider("Размер шрифта", 10, 72, 24, key=f"fs_{col}")
                             bold = st.checkbox("Жирный", key=f"bold_{col}")
-                        
                         with col_s2:
-                            alignment = st.selectbox(
-                                "Выравнивание",
-                                ["left", "center", "right"],
-                                index=1,
-                                key=f"align_{col}"
-                            )
+                            alignment = st.selectbox("Выравнивание", ["left", "center", "right"], index=1, key=f"align_{col}")
                             italic = st.checkbox("Курсив", key=f"italic_{col}")
-                        
-                        # Цвета
                         col_c1, col_c2 = st.columns(2)
                         with col_c1:
                             text_color = st.color_picker("Цвет текста", "#FFFFFF", key=f"tc_{col}")
                         with col_c2:
                             bg_color = st.color_picker("Цвет фона", None, key=f"bgc_{col}")
-                        
-                        # Рамка
                         border = st.checkbox("Добавить рамку", key=f"border_{col}")
                         if border:
                             col_b1, col_b2 = st.columns(2)
@@ -1239,8 +998,6 @@ def render_data_tab():
                                 border_color = st.color_picker("Цвет рамки", "#667eea", key=f"bc_{col}")
                             with col_b2:
                                 border_width = st.slider("Толщина", 1, 5, 2, key=f"bw_{col}")
-                        
-                        # Кнопка добавления элемента
                         if st.button(f"➕ Добавить {col} на холст", key=f"add_{col}"):
                             element = create_data_element(
                                 sample_value,
@@ -1269,81 +1026,40 @@ def render_data_tab():
 
 def render_text_tab():
     """Вкладка настроек текста"""
-    
     st.markdown("#### 📝 Настройки текста по умолчанию")
-    
-    # Шрифт
     st.session_state.text_settings['font_family'] = st.selectbox(
         "Семейство шрифтов",
         list(FONT_FAMILIES.keys()),
         format_func=lambda x: f"{x} ({FONT_FAMILIES[x]})",
-        index=list(FONT_FAMILIES.keys()).index(
-            st.session_state.text_settings.get('font_family', 'Montserrat')
-        )
+        index=list(FONT_FAMILIES.keys()).index(st.session_state.text_settings.get('font_family', 'Montserrat'))
     )
-    
-    # Размер
     st.session_state.text_settings['font_size'] = st.slider(
         "Размер шрифта", 8, 72, st.session_state.text_settings.get('font_size', 24)
     )
-    
-    # Цвет
     st.session_state.text_settings['font_color'] = st.color_picker(
         "Цвет текста", st.session_state.text_settings.get('font_color', '#FFFFFF')
     )
-    
-    # Стиль
     col_st1, col_st2, col_st3 = st.columns(3)
     with col_st1:
-        st.session_state.text_settings['bold'] = st.checkbox(
-            "Жирный", st.session_state.text_settings.get('bold', False)
-        )
+        st.session_state.text_settings['bold'] = st.checkbox("Жирный", st.session_state.text_settings.get('bold', False))
     with col_st2:
-        st.session_state.text_settings['italic'] = st.checkbox(
-            "Курсив", st.session_state.text_settings.get('italic', False)
-        )
+        st.session_state.text_settings['italic'] = st.checkbox("Курсив", st.session_state.text_settings.get('italic', False))
     with col_st3:
-        st.session_state.text_settings['underline'] = st.checkbox(
-            "Подчеркнутый", st.session_state.text_settings.get('underline', False)
-        )
-    
-    # Выравнивание
-    st.session_state.text_settings['alignment'] = st.radio(
-        "Выравнивание",
-        ["left", "center", "right"],
-        horizontal=True,
-        index=["left", "center", "right"].index(
-            st.session_state.text_settings.get('alignment', 'center')
-        )
-    )
-    
-    # Прозрачность
-    st.session_state.text_settings['opacity'] = st.slider(
-        "Прозрачность", 0.0, 1.0, st.session_state.text_settings.get('opacity', 1.0), 0.1
-    )
+        st.session_state.text_settings['underline'] = st.checkbox("Подчеркнутый", st.session_state.text_settings.get('underline', False))
+    st.session_state.text_settings['alignment'] = st.radio("Выравнивание", ["left", "center", "right"], horizontal=True, index=["left", "center", "right"].index(st.session_state.text_settings.get('alignment', 'center')))
+    st.session_state.text_settings['opacity'] = st.slider("Прозрачность", 0.0, 1.0, st.session_state.text_settings.get('opacity', 1.0), 0.1)
 
 def render_settings_tab():
     """Вкладка общих настроек"""
-    
     st.markdown("#### 🖱️ Управление мышью")
-    
-    # Режим мыши
-    mouse_mode = st.radio(
-    "Режим мыши",
-    ["✋ Перемещение", "📏 Изменение размера", "🔄 Поворот"],
-    horizontal=True,
-    index=0
-)
-
-mouse_mode_map = {
-    "✋ Перемещение": "move",
-    "📏 Изменение размера": "resize",
-    "🔄 Поворот": "rotate"
-}
-st.session_state.mouse_mode = mouse_mode_map[mouse_mode]
-
-# Отображение подсказок
-st.markdown(f"""
+    mouse_mode = st.radio("Режим мыши", ["✋ Перемещение", "📏 Изменение размера", "🔄 Поворот"], horizontal=True, index=0)
+    mouse_mode_map = {
+        "✋ Перемещение": "move",
+        "📏 Изменение размера": "resize",
+        "🔄 Поворот": "rotate"
+    }
+    st.session_state.mouse_mode = mouse_mode_map[mouse_mode]
+    st.markdown(f"""
 <div class="mouse-controls">
     <div class="mouse-button">
         <div class="mouse-icon {'active' if st.session_state.mouse_mode == 'move' else ''}">✋</div>
@@ -1359,162 +1075,112 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown("#### 📐 Сетка и направляющие")
-
-# Настройки сетки
-st.session_state.show_grid = st.checkbox("Показать сетку", st.session_state.show_grid)
-st.session_state.snap_to_grid = st.checkbox("Привязка к сетке", st.session_state.snap_to_grid)
-
-if st.session_state.show_grid:
-    st.session_state.grid_size = st.slider("Размер сетки", 10, 100, st.session_state.grid_size, 5)
-
-st.markdown("#### ⚡ Производительность")
-
-# Настройки производительности
-max_workers = st.slider("Параллельных потоков", 1, 20, 10)
-quality = st.slider("Качество JPEG", 50, 100, 95)
-
-st.session_state.max_workers = max_workers
-st.session_state.quality = quality
+    st.markdown("#### 📐 Сетка и направляющие")
+    st.session_state.show_grid = st.checkbox("Показать сетку", st.session_state.show_grid)
+    st.session_state.snap_to_grid = st.checkbox("Привязка к сетке", st.session_state.snap_to_grid)
+    if st.session_state.show_grid:
+        st.session_state.grid_size = st.slider("Размер сетки", 10, 100, st.session_state.grid_size, 5)
+    st.markdown("#### ⚡ Производительность")
+    max_workers = st.slider("Параллельных потоков", 1, 20, 10)
+    quality = st.slider("Качество JPEG", 50, 100, 95)
+    st.session_state.max_workers = max_workers
+    st.session_state.quality = quality
 
 # ================ ОСНОВНАЯ ОБЛАСТЬ ================
 def render_main_area():
-"""Отрисовка основной области с холстом"""
-
-col1, col2 = st.columns([1.2, 1.8])
-
-with col1:
-    st.markdown("### 📁 Загрузка изображений")
-    
-    # Загрузка файлов
-    uploaded_files = st.file_uploader(
-        "Выберите изображения (до 10000)",
-        type=['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'],
-        accept_multiple_files=True,
-        key="image_uploader"
-    )
-    
-    if uploaded_files:
-        st.session_state.images = uploaded_files
-        st.session_state.total_files = len(uploaded_files)
-        
-        # Статистика
-        col_s1, col_s2, col_s3 = st.columns(3)
-        with col_s1:
+    """Отрисовка основной области с холстом"""
+    col1, col2 = st.columns([1.2, 1.8])
+    with col1:
+        st.markdown("### 📁 Загрузка изображений")
+        uploaded_files = st.file_uploader("Выберите изображения (до 10000)", type=['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'], accept_multiple_files=True, key="image_uploader")
+        if uploaded_files:
+            st.session_state.images = uploaded_files
+            st.session_state.total_files = len(uploaded_files)
             total_size = sum(len(f.getvalue()) for f in uploaded_files) / (1024 * 1024)
             st.metric("Всего МБ", f"{total_size:.1f}")
-        with col_s2:
             st.metric("Файлов", len(uploaded_files))
-        with col_s3:
             st.metric("Средний", f"{total_size/len(uploaded_files):.1f} МБ")
-        
-        # Навигация
-        if len(uploaded_files) > 1:
-            col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
-            with col_n1:
-                if st.button("◀️", use_container_width=True):
-                    st.session_state.current_image_index = max(0, st.session_state.current_image_index - 1)
-            with col_n2:
-                st.markdown(f"<center>{st.session_state.current_image_index + 1} / {len(uploaded_files)}</center>", 
-                          unsafe_allow_html=True)
-            with col_n3:
-                if st.button("▶️", use_container_width=True):
-                    st.session_state.current_image_index = min(len(uploaded_files) - 1, 
-                                                              st.session_state.current_image_index + 1)
-
-with col2:
-    st.markdown("### 🎨 Холст для редактирования")
-    
-    if st.session_state.images:
-        current_img = st.session_state.images[st.session_state.current_image_index]
-        img = Image.open(current_img).convert('RGBA')
-        
-        # Создаем фон
-        bg_settings = {
-            'type': st.session_state.background_type,
-            'color': st.session_state.background_color,
-            'gradient': st.session_state.background_gradient,
-            'pattern': st.session_state.background_pattern,
-            'pattern_color': getattr(st.session_state, 'pattern_color', '#667eea'),
-            'bg_color': getattr(st.session_state, 'pattern_bg_color', '#FFFFFF'),
-            'image': st.session_state.background_image,
-            'opacity': st.session_state.background_opacity,
-            'blur': st.session_state.background_blur
-        }
-        
-        bg_img = create_background(img.width, img.height, bg_settings)
-        
-        # Накладываем изображение на фон
-        result = bg_img.copy()
-        
-        if st.session_state.background_type != 'image':
-            result.paste(img, (0, 0), img)
-        else:
-            x = (result.width - img.width) // 2
-            y = (result.height - img.height) // 2
-            result.paste(img, (x, y), img)
-        
-        # Добавляем сетку если нужно
-        if st.session_state.show_grid:
-            draw = ImageDraw.Draw(result)
-            grid_color = (128, 128, 128, 100)
-            size = st.session_state.grid_size
-            
-            for x in range(0, result.width, size):
-                draw.line([(x, 0), (x, result.height)], fill=grid_color, width=1)
-            for y in range(0, result.height, size):
-                draw.line([(0, y), (result.width, y)], fill=grid_color, width=1)
-        
-        # Отображаем результат
-        st.image(result, use_column_width=True)
-        
-        # Информация о размере
-        st.markdown(f"""
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <span class="size-badge">📏 {result.width} x {result.height}</span>
-            <span class="size-badge">📁 {get_image_size(result):.1f} KB</span>
-            <span class="size-badge">🎨 {result.mode}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Кнопки действий
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            if st.button("💾 Сохранить текущее", use_container_width=True):
-                output = io.BytesIO()
-                result.save(output, format='PNG', quality=95)
-                output.seek(0)
-                
-                st.download_button(
-                    "📥 Скачать",
-                    data=output,
-                    file_name=f"edited_{current_img.name}",
-                    mime="image/png",
-                    use_container_width=True
-                )
-        
-        with col_b2:
-            if st.button("🔄 Сбросить все", use_container_width=True):
-                st.session_state.background_color = '#667eea'
-                st.session_state.background_opacity = 1.0
-                st.session_state.background_blur = 0
-                st.rerun()
-        
-        # Отображение элементов данных
-        if st.session_state.data_elements:
-            st.markdown("#### 📋 Элементы данных на холсте")
-            
-            for i, element in enumerate(st.session_state.data_elements):
-                col_e1, col_e2 = st.columns([3, 1])
-                with col_e1:
-                    st.info(f"{element['column']}: {element['value']} (x:{element['x']}, y:{element['y']})")
-                with col_e2:
-                    if st.button("❌", key=f"del_{i}"):
-                        st.session_state.data_elements.pop(i)
+            if len(uploaded_files) > 1:
+                col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
+                with col_n1:
+                    if st.button("◀️", use_container_width=True):
+                        st.session_state.current_image_index = max(0, st.session_state.current_image_index - 1)
+                with col_n2:
+                    st.markdown(f"<center>{st.session_state.current_image_index + 1} / {len(uploaded_files)}</center>", unsafe_allow_html=True)
+                with col_n3:
+                    if st.button("▶️", use_container_width=True):
+                        st.session_state.current_image_index = min(len(uploaded_files) - 1, st.session_state.current_image_index + 1)
+        with col2:
+            st.markdown("### 🎨 Холст для редактирования")
+            if st.session_state.get('images'):
+                current_img = st.session_state['images'][st.session_state['current_image_index']]
+                img = Image.open(current_img).convert('RGBA')
+                # Создаем фон
+                bg_settings = {
+                    'type': st.session_state.background_type,
+                    'color': st.session_state.background_color,
+                    'gradient': st.session_state.background_gradient,
+                    'pattern': st.session_state.background_pattern,
+                    'pattern_color': getattr(st.session_state, 'pattern_color', '#667eea'),
+                    'bg_color': getattr(st.session_state, 'pattern_bg_color', '#FFFFFF'),
+                    'image': st.session_state.background_image,
+                    'opacity': st.session_state.background_opacity,
+                    'blur': st.session_state.background_blur
+                }
+                bg_img = create_background(img.width, img.height, bg_settings)
+                result = bg_img.copy()
+                if st.session_state.background_type != 'image':
+                    result.paste(img, (0, 0), img)
+                else:
+                    x = (result.width - img.width) // 2
+                    y = (result.height - img.height) // 2
+                    result.paste(img, (x, y), img)
+                # сетка
+                if st.session_state.show_grid:
+                    draw = ImageDraw.Draw(result)
+                    grid_color = (128, 128, 128, 100)
+                    size = st.session_state.grid_size
+                    for x in range(0, result.width, size):
+                        draw.line([(x, 0), (x, result.height)], fill=grid_color, width=1)
+                    for y in range(0, result.height, size):
+                        draw.line([(0, y), (result.width, y)], fill=grid_color, width=1)
+                # показываем
+                st.image(result, use_column_width=True)
+                # инфо
+                st.markdown(f"""
+<div style="display: flex; gap: 10px; margin-top: 10px;">
+    <span class="size-badge">📏 {result.width} x {result.height}</span>
+    <span class="size-badge">📁 {get_image_size(result):.1f} KB</span>
+    <span class="size-badge">🎨 {result.mode}</span>
+</div>
+""", unsafe_allow_html=True)
+                # кнопки
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button("💾 Сохранить текущее", use_container_width=True):
+                        output = io.BytesIO()
+                        result.save(output, format='PNG', quality=95)
+                        output.seek(0)
+                        st.download_button("📥 Скачать", data=output, file_name=f"edited_{current_img.name}", mime="image/png", use_container_width=True)
+                with col_b2:
+                    if st.button("🔄 Сбросить все", use_container_width=True):
+                        st.session_state.background_color = '#667eea'
+                        st.session_state.background_opacity = 1.0
+                        st.session_state.background_blur = 0
                         st.rerun()
-    else:
-        st.markdown("""
+                # элементы данных
+                if st.session_state.get('data_elements'):
+                    st.markdown("#### 📋 Элементы данных на холсте")
+                    for i, element in enumerate(st.session_state['data_elements']):
+                        col_e1, col_e2 = st.columns([3, 1])
+                        with col_e1:
+                            st.info(f"{element['column']}: {element['value']} (x:{element['x']}, y:{element['y']})")
+                        with col_e2:
+                            if st.button("❌", key=f"del_{i}"):
+                                st.session_state['data_elements'].pop(i)
+                                st.rerun()
+            else:
+                st.markdown("""
         <div style="text-align: center; padding: 100px; background: rgba(0,0,0,0.02); border-radius: 20px;">
             <div style="font-size: 80px;">📸</div>
             <h3>Загрузите изображения для начала работы</h3>
@@ -1523,82 +1189,59 @@ with col2:
         """, unsafe_allow_html=True)
 
 def get_image_size(img):
-"""Получение размера изображения в KB"""
-buffer = io.BytesIO()
-img.save(buffer, format='PNG')
-return len(buffer.getvalue()) / 1024
+    """Получение размера изображения в KB"""
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    return len(buffer.getvalue()) / 1024
 
 # ================ ОСНОВНАЯ ФУНКЦИЯ ================
 def main():
-"""Основная функция"""
-
-# Заголовок
-st.markdown('<h1 class="main-header">⚡ MEGA Photo Editor ПРОФЕССИОНАЛЬНЫЙ</h1>', 
-          unsafe_allow_html=True)
-
-# Инициализация состояния
-init_session_state()
-
-# Боковая панель
-start_processing = render_sidebar()
-
-# Основная область
-render_main_area()
-
-# Обработка пакета если нажата кнопка
-if start_processing and st.session_state.images:
-    with st.spinner("🔄 Обработка изображений..."):
-        
-        # Подготовка настроек фона
-        bg_settings = {
-            'type': st.session_state.background_type,
-            'color': st.session_state.background_color,
-            'gradient': st.session_state.background_gradient,
-            'pattern': st.session_state.background_pattern,
-            'pattern_color': getattr(st.session_state, 'pattern_color', '#667eea'),
-            'bg_color': getattr(st.session_state, 'pattern_bg_color', '#FFFFFF'),
-            'image': st.session_state.background_image,
-            'opacity': st.session_state.background_opacity,
-            'blur': st.session_state.background_blur
-        }
-        
-        # Параллельная обработка
-        processed, failed = process_batch_parallel(
-            st.session_state.images,
-            bg_settings,
-            st.session_state.data_elements,
-            st.session_state.excel_df,
-            max_workers=getattr(st.session_state, 'max_workers', 10)
-        )
-        
-        # Показываем результаты
-        st.markdown("### 📊 Результаты обработки")
-        
-        col_r1, col_r2, col_r3 = st.columns(3)
-        with col_r1:
-            st.metric("Всего", len(st.session_state.images))
-        with col_r2:
-            st.metric("Успешно", len(processed))
-        with col_r3:
-            st.metric("Ошибки", len(failed))
-        
-        if processed:
-            # Создание ZIP архива
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                for filename, data in processed:
-                    zip_file.writestr(filename, data)
-            
-            zip_buffer.seek(0)
-            
-            st.download_button(
-                "📥 Скачать все обработанные фото (ZIP)",
-                data=zip_buffer,
-                file_name=f"edited_photos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                mime="application/zip",
-                use_container_width=True
+    """Основная функция"""
+    # Заголовок
+    st.markdown('<h1 class="main-header">⚡ MEGA Photo Editor ПРОФЕССИОНАЛЬНЫЙ</h1>', unsafe_allow_html=True)
+    # Инициализация
+    init_session_state()
+    # Боковая панель
+    start_processing = render_sidebar()
+    # Основная
+    render_main_area()
+    # Обработка
+    if start_processing and st.session_state.get('images'):
+        with st.spinner("🔄 Обработка изображений..."):
+            bg_settings = {
+                'type': st.session_state.background_type,
+                'color': st.session_state.background_color,
+                'gradient': st.session_state.background_gradient,
+                'pattern': st.session_state.background_pattern,
+                'pattern_color': getattr(st.session_state, 'pattern_color', '#667eea'),
+                'bg_color': getattr(st.session_state, 'pattern_bg_color', '#FFFFFF'),
+                'image': st.session_state.background_image,
+                'opacity': st.session_state.background_opacity,
+                'blur': st.session_state.background_blur
+            }
+            processed, failed = process_batch_parallel(
+                st.session_state['images'],
+                bg_settings,
+                st.session_state['data_elements'],
+                st.session_state['excel_df'],
+                max_workers=getattr(st.session_state, 'max_workers', 10)
             )
+            st.markdown("### 📊 Результаты обработки")
+            col_r1, col_r2, col_r3 = st.columns(3)
+            with col_r1:
+                st.metric("Всего", len(st.session_state['images']))
+            with col_r2:
+                st.metric("Успешно", len(processed))
+            with col_r3:
+                st.metric("Ошибки", len(failed))
+            if processed:
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    for filename, data in processed:
+                        zip_file.writestr(filename, data)
+                zip_buffer.seek(0)
+                st.download_button("📥 Скачать все обработанные фото (ZIP)", data=zip_buffer, file_name=f"edited_photos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip", mime="application/zip", use_container_width=True)
 
 # ================ ЗАПУСК ================
 if __name__ == "__main__":
-main()
+    main()
