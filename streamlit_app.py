@@ -30,11 +30,9 @@ st.markdown("""
     /* Импорт шрифтов */
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Roboto:wght@300;400;700&display=swap');
-    
     * {
         font-family: 'Montserrat', sans-serif;
     }
-    
     /* Основной заголовок */
     .main-header {
         font-size: 4rem;
@@ -48,12 +46,10 @@ st.markdown("""
         animation: neonPulse 3s ease-in-out infinite;
         text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
     }
-    
     @keyframes neonPulse {
         0%, 100% { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5)); }
         50% { filter: drop-shadow(0 0 50px rgba(255, 107, 107, 0.8)); }
     }
-    
     /* Боковая панель с градиентом */
     .sidebar-gradient {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -64,7 +60,6 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1);
         box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
-    
     /* Карточки инструментов */
     .tool-card {
         background: rgba(255, 255, 255, 0.05);
@@ -79,7 +74,6 @@ st.markdown("""
         position: relative;
         overflow: hidden;
     }
-    
     .tool-card::before {
         content: '';
         position: absolute;
@@ -92,22 +86,16 @@ st.markdown("""
         opacity: 0;
         transition: opacity 0.3s ease;
     }
-    
-    .tool-card:hover::before {
-        opacity: 1;
-    }
-    
+    .tool-card:hover::before { opacity: 1; }
     .tool-card:hover {
         transform: translateY(-5px) scale(1.02);
         border-color: #667eea;
         box-shadow: 0 30px 60px rgba(102, 126, 234, 0.3);
     }
-    
     .tool-card.active {
         border: 3px solid #ff6b6b;
         background: rgba(255, 107, 107, 0.1);
     }
-    
     /* Область для работы с фоном */
     .background-workspace {
         background: #2a2a3a;
@@ -119,25 +107,6 @@ st.markdown("""
         border: 2px dashed #667eea;
         cursor: crosshair;
     }
-    
-    .background-layer {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        background-size: cover;
-        background-position: center;
-        transition: all 0.3s ease;
-    }
-    
-    .data-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-    }
-    
     /* Элементы данных из Excel */
     .data-element {
         position: absolute;
@@ -155,23 +124,15 @@ st.markdown("""
         min-width: 150px;
         text-align: center;
     }
-    
     .data-element:hover {
         transform: scale(1.05);
         box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
         border-color: #ff6b6b;
     }
-    
     .data-element.selected {
         border: 4px solid #ff6b6b;
         background: rgba(255, 255, 255, 1);
     }
-    
-    .data-element.dragging {
-        opacity: 0.8;
-        transform: scale(1.1);
-    }
-    
     /* Ресайз хендлы */
     .resize-handle {
         position: absolute;
@@ -182,12 +143,10 @@ st.markdown("""
         border-radius: 50%;
         z-index: 1000;
     }
-    
     .resize-handle.nw { top: -7px; left: -7px; cursor: nw-resize; }
     .resize-handle.ne { top: -7px; right: -7px; cursor: ne-resize; }
     .resize-handle.sw { bottom: -7px; left: -7px; cursor: sw-resize; }
     .resize-handle.se { bottom: -7px; right: -7px; cursor: se-resize; }
-    
     /* Цветовая палитра */
     .color-picker-grid {
         display: grid;
@@ -195,7 +154,6 @@ st.markdown("""
         gap: 10px;
         margin: 15px 0;
     }
-    
     .color-swatch {
         width: 100%;
         aspect-ratio: 1;
@@ -206,18 +164,15 @@ st.markdown("""
         position: relative;
         overflow: hidden;
     }
-    
     .color-swatch:hover {
         transform: scale(1.1);
         border-color: white;
         box-shadow: 0 0 30px currentColor;
     }
-    
     .color-swatch.selected {
         border: 4px solid #ff6b6b;
         transform: scale(1.05);
     }
-    
     .color-swatch::after {
         content: '';
         position: absolute;
@@ -227,7 +182,6 @@ st.markdown("""
         height: 100%;
         background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.1) 100%);
     }
-    
     /* Градиентные пресеты */
     .gradient-preview {
         height: 60px;
@@ -239,17 +193,14 @@ st.markdown("""
         position: relative;
         overflow: hidden;
     }
-    
     .gradient-preview:hover {
         transform: translateY(-5px);
         border-color: white;
         box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
-    
     .gradient-preview.selected {
         border: 4px solid #ff6b6b;
     }
-    
     /* Паттерны */
     .pattern-preview {
         width: 60px;
@@ -260,16 +211,13 @@ st.markdown("""
         border: 2px solid transparent;
         transition: all 0.3s ease;
     }
-    
     .pattern-preview:hover {
         transform: scale(1.1) rotate(5deg);
         border-color: white;
     }
-    
     .pattern-preview.selected {
         border: 4px solid #ff6b6b;
     }
-    
     /* Управление мышью */
     .mouse-controls {
         background: rgba(0, 0, 0, 0.3);
@@ -281,7 +229,6 @@ st.markdown("""
         margin: 30px 0;
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
     .mouse-button {
         display: flex;
         flex-direction: column;
@@ -290,7 +237,6 @@ st.markdown("""
         color: white;
         font-size: 14px;
     }
-    
     .mouse-icon {
         width: 60px;
         height: 60px;
@@ -302,13 +248,11 @@ st.markdown("""
         font-size: 30px;
         transition: all 0.3s ease;
     }
-    
     .mouse-icon.active {
         background: #667eea;
         box-shadow: 0 0 30px #667eea;
         transform: scale(1.1);
     }
-    
     /* Таблица данных */
     .excel-data-table {
         background: rgba(0, 0, 0, 0.2);
@@ -317,7 +261,6 @@ st.markdown("""
         max-height: 300px;
         overflow-y: auto;
     }
-    
     .data-row {
         display: flex;
         gap: 10px;
@@ -327,17 +270,14 @@ st.markdown("""
         transition: all 0.3s ease;
         color: white;
     }
-    
     .data-row:hover {
         background: rgba(102, 126, 234, 0.3);
         transform: translateX(10px);
     }
-    
     .data-row.selected {
         background: rgba(255, 107, 107, 0.3);
         border-left: 4px solid #ff6b6b;
     }
-    
     .data-cell {
         flex: 1;
         padding: 5px;
@@ -497,7 +437,7 @@ FONT_FAMILIES = {
     'Comic Sans': 'Дружелюбный'
 }
 
-# ================ ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ================
+# ===================== ФУНКЦИИ =====================
 def create_background(width, height, settings):
     """Создание фона на основе настроек"""
     background_type = settings.get('type', 'color')
@@ -529,7 +469,6 @@ def create_gradient_background(width, height, gradient_settings):
     img = Image.new('RGBA', (width, height))
     draw = ImageDraw.Draw(img)
     if gradient_type == 'linear':
-        # Линейный градиент
         rad = math.radians(angle)
         dx = math.cos(rad)
         dy = math.sin(rad)
@@ -538,7 +477,6 @@ def create_gradient_background(width, height, gradient_settings):
             color = interpolate_colors(colors, t)
             draw.line((i, 0, i, height), fill=color)
     elif gradient_type == 'radial':
-        # Радиальный градиент
         center_x, center_y = width / 2, height / 2
         max_dist = math.hypot(center_x, center_y)
         for y in range(height):
@@ -553,7 +491,6 @@ def interpolate_colors(colors, t):
     """Интерполяция цветов по t"""
     if len(colors) == 1:
         return colors[0]
-    # Для двух цветов
     if len(colors) == 2:
         c1 = hex_to_rgb(colors[0])
         c2 = hex_to_rgb(colors[1])
@@ -561,7 +498,6 @@ def interpolate_colors(colors, t):
         g = int(c1[1] + (c2[1] - c1[1]) * t)
         b = int(c1[2] + (c2[2] - c1[2]) * t)
         return (r, g, b)
-    # Для нескольких цветов - просто берем два ближайших
     n = len(colors)
     idx = int(t * (n - 1))
     t_local = t * (n - 1) - idx
@@ -805,7 +741,7 @@ def process_batch_parallel(images, background_settings, data_elements, excel_df,
             status_text.text(f"🔄 Обработано: {completed}/{total} | ✅ Успешно: {len(processed)} | ❌ Ошибок: {len(failed)}")
     return processed, failed
 
-# ================ БОКОВАЯ ПАНЕЛЬ С НАСТРОЙКАМИ ================
+# ================ БОКОВАЯ ПАНЕЛЬ ================
 def render_sidebar():
     """Отрисовка боковой панели с настройками"""
     with st.sidebar:
@@ -844,19 +780,16 @@ def render_background_tab():
         render_pattern_background()
     elif st.session_state.background_type == 'image':
         render_image_background()
+
     # Общие настройки
     st.markdown("#### ✨ Эффекты фона")
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-        st.session_state.background_opacity = st.slider("Прозрачность", 0.0, 1.0, st.session_state.background_opacity, 0.1)
-    with col_e2:
-        st.session_state.background_blur = st.slider("Размытие", 0, 20, st.session_state.background_blur, 1)
+    st.session_state.background_opacity = st.slider("Прозрачность", 0.0, 1.0, st.session_state.background_opacity, 0.1, key="bg_opacity_slider")
+    st.session_state.background_blur = st.slider("Размытие", 0, 20, st.session_state.background_blur, 1, key="bg_blur_slider")
 
 def render_color_background():
     """Настройки однотонного фона"""
     st.markdown("#### 🎨 Выберите цвет")
-    palette_name = st.selectbox("Палитра", list(COLOR_PALETTES.keys()), index=0, format_func=lambda x: x.capitalize())
-    # отображение цветов палитры
+    palette_name = st.selectbox("Палитра", list(COLOR_PALETTES.keys()), index=0, format_func=lambda x: x.capitalize(), key="palette_select")
     cols = st.columns(5)
     for i, color in enumerate(COLOR_PALETTES[palette_name][:5]):
         with cols[i]:
@@ -867,11 +800,10 @@ def render_color_background():
                  onclick="alert('color_{color}')">
             </div>
             """, unsafe_allow_html=True)
-            if st.button("✓", key=f"color_{color}", help=color):
+            if st.button("✓", key=f"color_button_{color}", help=color):
                 st.session_state.background_color = color
                 st.rerun()
-    # точный выбор
-    st.session_state.background_color = st.color_picker("Точный цвет", st.session_state.background_color)
+    st.session_state.background_color = st.color_picker("Точный цвет", st.session_state.background_color, key="bg_color_picker")
 
 def render_gradient_background():
     """Настройки градиентного фона"""
@@ -888,7 +820,7 @@ def render_gradient_background():
             </div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button(f"📌 {preset['name']}", key=f"gradient_{preset_id}", use_container_width=True):
+        if st.button(f"📌 {preset['name']}", key=f"gradient_btn_{preset_id}", use_container_width=True):
             st.session_state.background_gradient = {
                 'type': 'linear',
                 'colors': preset['colors'],
@@ -898,19 +830,19 @@ def render_gradient_background():
             st.rerun()
 
     st.markdown("#### ✏️ Свой градиент")
-    grad_type = st.radio("Тип", ["Линейный", "Радиальный"], horizontal=True)
+    grad_type = st.radio("Тип", ["Линейный", "Радиальный"], horizontal=True, key="grad_type_radio")
     col_c1, col_c2 = st.columns(2)
     with col_c1:
-        color1 = st.color_picker("Цвет 1", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[0])
+        color1 = st.color_picker("Цвет 1", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[0], key="grad_color1")
     with col_c2:
-        color2 = st.color_picker("Цвет 2", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[1])
-    if st.checkbox("➕ Добавить цвет"):
-        color3 = st.color_picker("Цвет 3", "#ff6b6b")
+        color2 = st.color_picker("Цвет 2", st.session_state.background_gradient.get('colors', ['#667eea', '#764ba2'])[1], key="grad_color2")
+    if st.checkbox("➕ Добавить цвет", key="add_color_checkbox"):
+        color3 = st.color_picker("Цвет 3", "#ff6b6b", key="grad_color3")
         colors = [color1, color2, color3]
     else:
         colors = [color1, color2]
     if grad_type == "Линейный":
-        angle = st.slider("Угол", 0, 360, st.session_state.background_gradient.get('angle', 45))
+        angle = st.slider("Угол", 0, 360, st.session_state.background_gradient.get('angle', 45), key="grad_angle")
     else:
         angle = 0
     st.session_state.background_gradient = {
@@ -939,9 +871,9 @@ def render_pattern_background():
     st.markdown("#### 🎨 Цвета паттерна")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
-        pattern_color = st.color_picker("Цвет узора", "#667eea")
+        pattern_color = st.color_picker("Цвет узора", "#667eea", key="pattern_color_picker")
     with col_p2:
-        bg_color = st.color_picker("Цвет фона", "#FFFFFF")
+        bg_color = st.color_picker("Цвет фона", "#FFFFFF", key="pattern_bg_color_picker")
     st.session_state.pattern_color = pattern_color
     st.session_state.pattern_bg_color = bg_color
 
@@ -953,6 +885,7 @@ def render_image_background():
         st.session_state.background_image = Image.open(bg_image)
         st.success(f"✅ Загружено: {bg_image.name}")
 
+# ==================== Вкладки с данными ====================
 def render_data_tab():
     """Вкладка работы с данными из Excel"""
     st.markdown("#### 📊 Загрузка данных из Excel")
@@ -965,7 +898,7 @@ def render_data_tab():
             with st.expander("👁️ Превью данных"):
                 st.dataframe(df.head(10), use_container_width=True)
             st.markdown("#### 📌 Выберите колонки для отображения")
-            selected_cols = st.multiselect("Колонки", df.columns.tolist(), default=st.session_state.selected_columns)
+            selected_cols = st.multiselect("Колонки", df.columns.tolist(), default=st.session_state.selected_columns, key="columns_multiselect")
             st.session_state.selected_columns = selected_cols
             if selected_cols:
                 st.markdown("#### ⚙️ Настройки отображения")
@@ -990,7 +923,7 @@ def render_data_tab():
                         with col_c1:
                             text_color = st.color_picker("Цвет текста", "#FFFFFF", key=f"tc_{col}")
                         with col_c2:
-                            bg_color = st.color_picker("Цвет фона", None, key=f"bgc_{col}")
+                            bg_color = st.color_picker("Цвет фона", "#FFFFFF", key=f"bgc_{col}")
                         border = st.checkbox("Добавить рамку", key=f"border_{col}")
                         if border:
                             col_b1, col_b2 = st.columns(2)
@@ -1024,35 +957,63 @@ def render_data_tab():
                             st.success(f"✅ Элемент {col} добавлен!")
                             st.rerun()
 
+# ==================== Вкладка с настройками текста ====================
 def render_text_tab():
     """Вкладка настроек текста"""
     st.markdown("#### 📝 Настройки текста по умолчанию")
+    # Семейство шрифтов
     st.session_state.text_settings['font_family'] = st.selectbox(
         "Семейство шрифтов",
         list(FONT_FAMILIES.keys()),
         format_func=lambda x: f"{x} ({FONT_FAMILIES[x]})",
-        index=list(FONT_FAMILIES.keys()).index(st.session_state.text_settings.get('font_family', 'Montserrat'))
+        index=list(FONT_FAMILIES.keys()).index(st.session_state.text_settings.get('font_family', 'Montserrat')),
+        key="font_family_selectbox"
     )
+    # Размер шрифта
     st.session_state.text_settings['font_size'] = st.slider(
-        "Размер шрифта", 8, 72, st.session_state.text_settings.get('font_size', 24)
+        "Размер шрифта", 8, 72, st.session_state.text_settings.get('font_size', 24),
+        key="font_size_slider"
     )
+    # Цвет текста
     st.session_state.text_settings['font_color'] = st.color_picker(
-        "Цвет текста", st.session_state.text_settings.get('font_color', '#FFFFFF')
+        "Цвет текста", st.session_state.text_settings.get('font_color', '#FFFFFF'),
+        key="font_color_picker"
     )
     col_st1, col_st2, col_st3 = st.columns(3)
     with col_st1:
-        st.session_state.text_settings['bold'] = st.checkbox("Жирный", st.session_state.text_settings.get('bold', False))
+        st.session_state.text_settings['bold'] = st.checkbox(
+            "Жирный", st.session_state.text_settings.get('bold', False),
+            key="bold_checkbox"
+        )
     with col_st2:
-        st.session_state.text_settings['italic'] = st.checkbox("Курсив", st.session_state.text_settings.get('italic', False))
+        st.session_state.text_settings['italic'] = st.checkbox(
+            "Курсив", st.session_state.text_settings.get('italic', False),
+            key="italic_checkbox"
+        )
     with col_st3:
-        st.session_state.text_settings['underline'] = st.checkbox("Подчеркнутый", st.session_state.text_settings.get('underline', False))
-    st.session_state.text_settings['alignment'] = st.radio("Выравнивание", ["left", "center", "right"], horizontal=True, index=["left", "center", "right"].index(st.session_state.text_settings.get('alignment', 'center')))
-    st.session_state.text_settings['opacity'] = st.slider("Прозрачность", 0.0, 1.0, st.session_state.text_settings.get('opacity', 1.0), 0.1)
+        st.session_state.text_settings['underline'] = st.checkbox(
+            "Подчеркнутый", st.session_state.text_settings.get('underline', False),
+            key="underline_checkbox"
+        )
+    # Выравнивание
+    st.session_state.text_settings['alignment'] = st.radio(
+        "Выравнивание", ["left", "center", "right"],
+        index=["left", "center", "right"].index(st.session_state.text_settings.get('alignment', 'center')),
+        horizontal=True,
+        key="alignment_radio"
+    )
+    # Прозрачность
+    st.session_state.text_settings['opacity'] = st.slider(
+        "Прозрачность", 0.0, 1.0, st.session_state.text_settings.get('opacity', 1.0),
+        0.1,
+        key="opacity_slider"
+    )
 
+# ==================== Основные настройки ====================
 def render_settings_tab():
     """Вкладка общих настроек"""
     st.markdown("#### 🖱️ Управление мышью")
-    mouse_mode = st.radio("Режим мыши", ["✋ Перемещение", "📏 Изменение размера", "🔄 Поворот"], horizontal=True, index=0)
+    mouse_mode = st.radio("Режим мыши", ["✋ Перемещение", "📏 Изменение размера", "🔄 Поворот"], horizontal=True, index=0, key="mouse_mode_radio")
     mouse_mode_map = {
         "✋ Перемещение": "move",
         "📏 Изменение размера": "resize",
@@ -1076,17 +1037,17 @@ def render_settings_tab():
 </div>
 """, unsafe_allow_html=True)
     st.markdown("#### 📐 Сетка и направляющие")
-    st.session_state.show_grid = st.checkbox("Показать сетку", st.session_state.show_grid)
-    st.session_state.snap_to_grid = st.checkbox("Привязка к сетке", st.session_state.snap_to_grid)
+    st.session_state.show_grid = st.checkbox("Показать сетку", st.session_state.show_grid, key="show_grid_checkbox")
+    st.session_state.snap_to_grid = st.checkbox("Провязка к сетке", st.session_state.snap_to_grid, key="snap_to_grid_checkbox")
     if st.session_state.show_grid:
-        st.session_state.grid_size = st.slider("Размер сетки", 10, 100, st.session_state.grid_size, 5)
+        st.session_state.grid_size = st.slider("Размер сетки", 10, 100, st.session_state.grid_size, 5, key="grid_size_slider")
     st.markdown("#### ⚡ Производительность")
-    max_workers = st.slider("Параллельных потоков", 1, 20, 10)
-    quality = st.slider("Качество JPEG", 50, 100, 95)
+    max_workers = st.slider("Параллельных потоков", 1, 20, 10, key="max_workers_slider")
+    quality = st.slider("Качество JPEG", 50, 100, 95, key="quality_slider")
     st.session_state.max_workers = max_workers
     st.session_state.quality = quality
 
-# ================ ОСНОВНАЯ ОБЛАСТЬ ================
+# ==================== Основная область ====================
 def render_main_area():
     """Отрисовка основной области с холстом"""
     col1, col2 = st.columns([1.2, 1.8])
@@ -1103,12 +1064,12 @@ def render_main_area():
             if len(uploaded_files) > 1:
                 col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
                 with col_n1:
-                    if st.button("◀️", use_container_width=True):
+                    if st.button("◀️", use_container_width=True, key="prev_btn"):
                         st.session_state.current_image_index = max(0, st.session_state.current_image_index - 1)
                 with col_n2:
                     st.markdown(f"<center>{st.session_state.current_image_index + 1} / {len(uploaded_files)}</center>", unsafe_allow_html=True)
                 with col_n3:
-                    if st.button("▶️", use_container_width=True):
+                    if st.button("▶️", use_container_width=True, key="next_btn"):
                         st.session_state.current_image_index = min(len(uploaded_files) - 1, st.session_state.current_image_index + 1)
         with col2:
             st.markdown("### 🎨 Холст для редактирования")
@@ -1157,13 +1118,13 @@ def render_main_area():
                 # кнопки
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    if st.button("💾 Сохранить текущее", use_container_width=True):
+                    if st.button("💾 Сохранить текущее", use_container_width=True, key="save_btn"):
                         output = io.BytesIO()
                         result.save(output, format='PNG', quality=95)
                         output.seek(0)
                         st.download_button("📥 Скачать", data=output, file_name=f"edited_{current_img.name}", mime="image/png", use_container_width=True)
                 with col_b2:
-                    if st.button("🔄 Сбросить все", use_container_width=True):
+                    if st.button("🔄 Сбросить все", use_container_width=True, key="reset_btn"):
                         st.session_state.background_color = '#667eea'
                         st.session_state.background_opacity = 1.0
                         st.session_state.background_blur = 0
@@ -1194,18 +1155,13 @@ def get_image_size(img):
     img.save(buffer, format='PNG')
     return len(buffer.getvalue()) / 1024
 
-# ================ ОСНОВНАЯ ФУНКЦИЯ ================
+# ==================== Основная функция ====================
 def main():
-    """Основная функция"""
-    # Заголовок
+    """Главная логика"""
     st.markdown('<h1 class="main-header">⚡ MEGA Photo Editor ПРОФЕССИОНАЛЬНЫЙ</h1>', unsafe_allow_html=True)
-    # Инициализация
     init_session_state()
-    # Боковая панель
     start_processing = render_sidebar()
-    # Основная
     render_main_area()
-    # Обработка
     if start_processing and st.session_state.get('images'):
         with st.spinner("🔄 Обработка изображений..."):
             bg_settings = {
@@ -1242,6 +1198,6 @@ def main():
                 zip_buffer.seek(0)
                 st.download_button("📥 Скачать все обработанные фото (ZIP)", data=zip_buffer, file_name=f"edited_photos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip", mime="application/zip", use_container_width=True)
 
-# ================ ЗАПУСК ================
+# ==================== Запуск ====================
 if __name__ == "__main__":
     main()
