@@ -1,7 +1,6 @@
-streamlit==1.23.1
-pandas>=1.5.3  # Используйте минимальную версию, чтобы избежать сборки из исходников
-numpy>=1.23.5
-plotly==5.13.1
-Pillow==9.4.0
-openpyxl==3.0.10
-# Добавьте другие зависимости по необходимости
+streamlit
+pandas
+numpy
+plotly
+Pillow
+openpyxl
