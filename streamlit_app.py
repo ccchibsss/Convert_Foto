@@ -1,1053 +1,1055 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageOps, ImageDraw, ImageFilter, ImageFont
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import io
 import zipfile
-import os
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
-import pandas as pd
-import math
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import queue
+import json
+import base64
 
 # ================ КОНФИГУРАЦИЯ СТРАНИЦЫ ================
-
 st.set_page_config(
-    page_title="PRO Инфографика для маркетплейсов",
-    page_icon="📊",
+    page_title="⚡ MEGA Infographic Factory",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ================ КЛАСС ДЛЯ СОЗДАНИЯ ИНФОГРАФИКИ ================
+# ================ CSS СТИЛИ ================
+st.markdown("""
+<style>
+    /* Основные стили */
+    .main-header {
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f43f5e 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 2rem;
+        animation: glow 3s ease-in-out infinite;
+    }
+    
+    @keyframes glow {
+        0%, 100% { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.3)); }
+        50% { filter: drop-shadow(0 0 40px rgba(102, 126, 234, 0.6)); }
+    }
+    
+    /* Drag-and-drop области */
+    .drop-zone {
+        border: 3px dashed #667eea;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        background: rgba(102, 126, 234, 0.05);
+        transition: all 0.3s ease;
+        min-height: 100px;
+        margin: 10px 0;
+        cursor: move;
+        position: relative;
+    }
+    
+    .drop-zone:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: #764ba2;
+        transform: scale(1.02);
+    }
+    
+    .drop-zone.active {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+    }
+    
+    .resize-handle {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 20px;
+        height: 20px;
+        cursor: se-resize;
+        background: linear-gradient(135deg, transparent 50%, #667eea 50%);
+        border-bottom-right-radius: 15px;
+    }
+    
+    /* Текстовые боксы */
+    .text-box {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(102, 126, 234, 0.3);
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .text-box:hover {
+        border-color: #667eea;
+        transform: translateX(5px);
+    }
+    
+    .text-box.selected {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+    }
+    
+    /* Прогресс бар */
+    .progress-container {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .progress-bar {
+        height: 30px;
+        background: linear-gradient(90deg, #667eea, #764ba2, #f43f5e);
+        border-radius: 15px;
+        transition: width 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .progress-bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    
+    /* Статистика */
+    .stat-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .stat-label {
+        color: #888;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* Кнопки */
+    .action-button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin: 10px 0;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .action-button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        transition: left 0.5s ease;
+    }
+    
+    .action-button:hover::before {
+        left: 100%;
+    }
+    
+    .action-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Инструменты */
+    .tool-panel {
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 15px;
+        padding: 20px;
+        margin: 10px 0;
+    }
+    
+    .tool-icon {
+        font-size: 1.5rem;
+        margin-right: 10px;
+    }
+    
+    /* Уведомления */
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(16, 185, 129, 0.9);
+        backdrop-filter: blur(10px);
+        color: white;
+        padding: 15px 25px;
+        border-radius: 50px;
+        animation: slideIn 0.3s ease;
+        z-index: 1000;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
-class InfographicGenerator:
-    """Генератор профессиональной инфографики для карточек товаров"""
+# ================ ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ================
+def init_session_state():
+    """Инициализация состояния сессии"""
     
-    def __init__(self):
-        self.fonts = {}
-        self.templates = {}
-        self.icons = {}
+    if 'templates' not in st.session_state:
+        st.session_state.templates = {
+            'template_1': {
+                'name': 'Шаблон 1',
+                'zones': {
+                    'title': {'x': 0.1, 'y': 0.05, 'width': 0.8, 'height': 0.1, 'type': 'text', 'column': None},
+                    'subtitle': {'x': 0.1, 'y': 0.16, 'width': 0.8, 'height': 0.06, 'type': 'text', 'column': None},
+                    'chart': {'x': 0.05, 'y': 0.25, 'width': 0.9, 'height': 0.4, 'type': 'chart', 'column': None},
+                    'metric_1': {'x': 0.05, 'y': 0.7, 'width': 0.2, 'height': 0.1, 'type': 'metric', 'column': 'value'},
+                    'metric_2': {'x': 0.4, 'y': 0.7, 'width': 0.2, 'height': 0.1, 'type': 'metric', 'column': 'value'},
+                    'metric_3': {'x': 0.75, 'y': 0.7, 'width': 0.2, 'height': 0.1, 'type': 'metric', 'column': 'value'},
+                    'text_1': {'x': 0.05, 'y': 0.85, 'width': 0.4, 'height': 0.1, 'type': 'text', 'column': None},
+                    'text_2': {'x': 0.55, 'y': 0.85, 'width': 0.4, 'height': 0.1, 'type': 'text', 'column': None}
+                }
+            },
+            'template_2': {
+                'name': 'Шаблон 2',
+                'zones': {
+                    'header': {'x': 0.1, 'y': 0.02, 'width': 0.8, 'height': 0.08, 'type': 'text', 'column': None},
+                    'chart_left': {'x': 0.05, 'y': 0.15, 'width': 0.4, 'height': 0.4, 'type': 'chart', 'column': None},
+                    'chart_right': {'x': 0.55, 'y': 0.15, 'width': 0.4, 'height': 0.4, 'type': 'chart', 'column': None},
+                    'stats': {'x': 0.05, 'y': 0.6, 'width': 0.9, 'height': 0.2, 'type': 'metrics_grid', 'column': None},
+                    'footer': {'x': 0.1, 'y': 0.85, 'width': 0.8, 'height': 0.1, 'type': 'text', 'column': None}
+                }
+            }
+        }
     
-    @staticmethod
-    def hex_to_rgb(hex_color):
-        """Конвертация HEX в RGB"""
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    if 'current_template' not in st.session_state:
+        st.session_state.current_template = 'template_1'
     
-    def create_size_chart_infographic(self, product_data, design_settings):
-        """Создание инфографики с размерной сеткой"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#FFFFFF'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Заголовок
-            title_bg = self.hex_to_rgb(design_settings.get('title_bg', '#2C3E50'))
-            draw.rectangle([0, 0, width, 80], fill=title_bg)
-            
-            title_text = product_data.get('title', 'Размерная сетка')
-            draw.text((50, 30), title_text, fill='white')
-            
-            y_pos = 120
-            
-            # Изображение товара (если есть)
-            if 'product_image' in product_data and product_data['product_image']:
-                prod_img = product_data['product_image'].copy()
-                prod_img.thumbnail((300, 300))
-                img.paste(prod_img, (50, y_pos))
-                y_pos += 320
-            
-            # Таблица размеров
-            sizes = product_data.get('sizes', ['S', 'M', 'L', 'XL'])
-            measurements = product_data.get('measurements', ['Длина', 'Ширина', 'Высота'])
-            
-            # Заголовки таблицы
-            col_width = (width - 100) // (len(sizes) + 1)
-            x_positions = [50 + i * col_width for i in range(len(sizes) + 1)]
-            
-            # Рисуем таблицу
-            row_height = 50
-            
-            # Заголовки колонок
-            draw.rectangle([50, y_pos, width-50, y_pos+row_height], 
-                          fill=self.hex_to_rgb(design_settings.get('table_header', '#3498DB')))
-            draw.text((x_positions[0] + 10, y_pos + 15), "Размер", fill='white')
-            for i, size in enumerate(sizes):
-                draw.text((x_positions[i+1] + 10, y_pos + 15), str(size), fill='white')
-            
-            y_pos += row_height
-            
-            # Строки с измерениями
-            for meas in measurements:
-                draw.rectangle([50, y_pos, width-50, y_pos+row_height], 
-                              outline=self.hex_to_rgb('#BDC3C7'), width=1)
-                draw.text((x_positions[0] + 10, y_pos + 15), meas, fill='black')
-                
-                for i, size in enumerate(sizes):
-                    value = product_data.get(f'{size}_{meas}', '—')
-                    draw.text((x_positions[i+1] + 10, y_pos + 15), str(value), fill='black')
-                
-                y_pos += row_height
-            
-            # Рекомендации по выбору размера
-            if 'size_tip' in product_data:
-                y_pos += 20
-                draw.rectangle([50, y_pos, width-50, y_pos+80], 
-                              fill=self.hex_to_rgb('#F39C12'), outline=self.hex_to_rgb('#E67E22'), width=2)
-                draw.text((60, y_pos + 15), "💡 Как выбрать размер:", fill='white')
-                draw.text((60, y_pos + 45), product_data['size_tip'], fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания размерной сетки: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
+    if 'selected_zone' not in st.session_state:
+        st.session_state.selected_zone = None
     
-    def create_specs_infographic(self, product_data, design_settings):
-        """Создание инфографики с техническими характеристиками"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#FFFFFF'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Градиентный фон
-            for i in range(height):
-                color_value = int(255 - (i / height) * 50)
-                draw.line([(0, i), (width, i)], fill=(color_value, color_value, color_value))
-            
-            # Заголовок
-            title_rect = [(0, 0), (width, 100)]
-            draw.rectangle(title_rect, fill=self.hex_to_rgb('#2980B9'))
-            draw.text((50, 35), f"📊 {product_data.get('title', 'Характеристики')}", fill='white')
-            
-            y_pos = 130
-            
-            # Изображение товара справа
-            if 'product_image' in product_data and product_data['product_image']:
-                prod_img = product_data['product_image'].copy()
-                prod_img.thumbnail((250, 250))
-                img.paste(prod_img, (width - 280, y_pos))
-            
-            # Основные характеристики в две колонки
-            specs = product_data.get('specs', {})
-            col1_x, col2_x = 50, width // 2 + 30
-            col_width = width // 2 - 80
-            
-            for i, (key, value) in enumerate(specs.items()):
-                if i % 2 == 0:
-                    x = col1_x
-                else:
-                    x = col2_x
-                
-                # Карточка характеристики
-                card_y = y_pos + (i // 2) * 80
-                draw.rectangle([x, card_y, x + col_width, card_y + 70], 
-                              fill='white', outline=self.hex_to_rgb('#3498DB'), width=2)
-                
-                # Иконка (упрощенно)
-                draw.ellipse([x + 10, card_y + 15, x + 40, card_y + 45], 
-                            fill=self.hex_to_rgb('#3498DB'))
-                
-                # Текст
-                draw.text((x + 50, card_y + 15), str(key), fill='black')
-                draw.text((x + 50, card_y + 40), str(value), fill=self.hex_to_rgb('#7F8C8D'))
-            
-            y_pos += ((len(specs) + 1) // 2) * 80 + 20
-            
-            # Преимущества
-            if 'benefits' in product_data:
-                draw.rectangle([50, y_pos, width-50, y_pos + 100 + len(product_data['benefits'])*30], 
-                              fill=self.hex_to_rgb('#27AE60'), outline=self.hex_to_rgb('#229954'), width=2)
-                draw.text((70, y_pos + 15), "✓ Преимущества:", fill='white')
-                
-                for i, benefit in enumerate(product_data['benefits']):
-                    draw.text((90, y_pos + 50 + i*30), f"• {benefit}", fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания характеристик: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
+    if 'processed_files' not in st.session_state:
+        st.session_state.processed_files = []
     
-    def create_comparison_infographic(self, product_data, design_settings):
-        """Создание инфографики сравнения с конкурентами"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#FFFFFF'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Заголовок
-            draw.rectangle([0, 0, width, 80], fill=self.hex_to_rgb('#8E44AD'))
-            draw.text((50, 30), f"⚡ {product_data.get('title', 'Сравнение')}", fill='white')
-            
-            y_pos = 120
-            
-            # Наш продукт
-            our_product = product_data.get('our_product', 'Наш товар')
-            competitors = product_data.get('competitors', [])
-            features = product_data.get('features', [])
-            
-            # Заголовки колонок
-            col_width = (width - 100) // (len(competitors) + 2)
-            x_positions = [50 + i * col_width for i in range(len(competitors) + 2)]
-            
-            # Шапка сравнения
-            draw.rectangle([50, y_pos, width-50, y_pos+60], fill=self.hex_to_rgb('#34495E'))
-            draw.text((x_positions[0] + 10, y_pos + 20), "Характеристика", fill='white')
-            draw.text((x_positions[1] + 10, y_pos + 20), our_product[:15], fill='white')
-            
-            for i, comp in enumerate(competitors):
-                draw.text((x_positions[i+2] + 10, y_pos + 20), comp[:15], fill='white')
-            
-            y_pos += 70
-            
-            # Строки сравнения
-            for feature in features:
-                draw.rectangle([50, y_pos, width-50, y_pos+50], 
-                              outline=self.hex_to_rgb('#BDC3C7'), width=1)
-                draw.text((x_positions[0] + 10, y_pos + 15), feature['name'], fill='black')
-                
-                # Наш продукт (зеленый)
-                our_value = feature.get('our', '—')
-                draw.text((x_positions[1] + 10, y_pos + 15), str(our_value), 
-                         fill=self.hex_to_rgb('#27AE60'))
-                
-                # Конкуренты
-                for i, comp_value in enumerate(feature.get('competitors', [])):
-                    color = self.hex_to_rgb('#E74C3C') if i == 0 else self.hex_to_rgb('#95A5A6')
-                    draw.text((x_positions[i+2] + 10, y_pos + 15), str(comp_value), fill=color)
-                
-                y_pos += 55
-            
-            # Итоговая рекомендация
-            y_pos += 20
-            draw.rectangle([50, y_pos, width-50, y_pos+80], fill=self.hex_to_rgb('#27AE60'))
-            draw.text((60, y_pos + 20), "🏆 Почему стоит выбрать нас:", fill='white')
-            draw.text((60, y_pos + 50), product_data.get('conclusion', 'Лучшее соотношение цены и качества'), 
-                     fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания сравнения: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
+    if 'batch_queue' not in st.session_state:
+        st.session_state.batch_queue = queue.Queue()
     
-    def create_usp_infographic(self, product_data, design_settings):
-        """Создание инфографики с уникальными торговыми предложениями"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#F8F9FA'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Верхний баннер
-            draw.rectangle([0, 0, width, 200], fill=self.hex_to_rgb('#E67E22'))
-            
-            # Название товара
-            title = product_data.get('title', 'НАШ ТОВАР')
-            draw.text((50, 50), title.upper(), fill='white')
-            draw.text((50, 100), product_data.get('subtitle', 'Почему стоит выбрать?'), fill='white')
-            
-            y_pos = 250
-            
-            # Список УТП в виде карточек
-            usp_list = product_data.get('usp', [])
-            cols = 2
-            card_width = (width - 150) // cols
-            card_height = 150
-            
-            for i, usp in enumerate(usp_list):
-                row = i // cols
-                col = i % cols
-                
-                x = 50 + col * (card_width + 50)
-                y = y_pos + row * (card_height + 30)
-                
-                # Карточка
-                draw.rectangle([x, y, x + card_width, y + card_height], 
-                              fill='white', outline=self.hex_to_rgb('#E67E22'), width=3)
-                
-                # Иконка
-                icon_x = x + 30
-                icon_y = y + 30
-                draw.ellipse([icon_x, icon_y, icon_x + 50, icon_y + 50], 
-                            fill=self.hex_to_rgb('#E67E22'))
-                draw.text((icon_x + 15, icon_y + 15), str(i+1), fill='white')
-                
-                # Заголовок
-                draw.text((x + 100, y + 30), usp.get('title', f'Преимущество {i+1}'), 
-                         fill='black')
-                
-                # Описание
-                description = usp.get('description', '')
-                lines = self.wrap_text(description, 25)
-                for j, line in enumerate(lines[:2]):
-                    draw.text((x + 100, y + 60 + j*25), line, fill=self.hex_to_rgb('#7F8C8D'))
-            
-            y_pos += ((len(usp_list) + cols - 1) // cols) * (card_height + 50)
-            
-            # Призыв к действию
-            draw.rectangle([50, y_pos, width-50, y_pos+100], fill=self.hex_to_rgb('#27AE60'))
-            draw.text((width//2 - 100, y_pos + 35), "🛒 КУПИТЬ СЕЙЧАС", fill='white')
-            draw.text((width//2 - 80, y_pos + 65), product_data.get('price', 'Цена по запросу'), 
-                     fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания УТП: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
+    if 'processing' not in st.session_state:
+        st.session_state.processing = False
     
-    def create_instruction_infographic(self, product_data, design_settings):
-        """Создание инфографики с инструкцией по применению"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#FFFFFF'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Заголовок
-            draw.rectangle([0, 0, width, 80], fill=self.hex_to_rgb('#3498DB'))
-            draw.text((50, 30), f"📖 {product_data.get('title', 'Инструкция')}", fill='white')
-            
-            y_pos = 120
-            
-            # Шаги инструкции
-            steps = product_data.get('steps', [])
-            
-            for i, step in enumerate(steps):
-                # Номер шага
-                draw.ellipse([50, y_pos, 100, y_pos+50], fill=self.hex_to_rgb('#3498DB'))
-                draw.text((65, y_pos+15), str(i+1), fill='white')
-                
-                # Заголовок шага
-                draw.text((120, y_pos+10), step.get('title', f'Шаг {i+1}'), fill='black')
-                
-                # Описание
-                description = step.get('description', '')
-                lines = self.wrap_text(description, 50)
-                for j, line in enumerate(lines):
-                    draw.text((120, y_pos+40 + j*25), line, fill=self.hex_to_rgb('#7F8C8D'))
-                
-                # Схематичное изображение
-                if 'icon' in step:
-                    icon_rect = [width-150, y_pos, width-50, y_pos+80]
-                    draw.rectangle(icon_rect, outline=self.hex_to_rgb('#BDC3C7'), width=2)
-                    draw.text((width-130, y_pos+30), step['icon'], fill='black')
-                
-                # Высота шага зависит от количества текста
-                step_height = 80 + len(lines) * 25
-                y_pos += step_height
-                
-                # Разделитель
-                if i < len(steps) - 1:
-                    draw.line([(50, y_pos-10), (width-50, y_pos-10)], 
-                             fill=self.hex_to_rgb('#BDC3C7'), width=2)
-            
-            # Предупреждение
-            if 'warning' in product_data:
-                y_pos += 20
-                draw.rectangle([50, y_pos, width-50, y_pos+80], 
-                              fill=self.hex_to_rgb('#E74C3C'), outline=self.hex_to_rgb('#C0392B'), width=2)
-                draw.text((60, y_pos+15), "⚠️ ВНИМАНИЕ:", fill='white')
-                draw.text((60, y_pos+45), product_data['warning'], fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания инструкции: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
+    if 'progress' not in st.session_state:
+        st.session_state.progress = 0
     
-    def create_package_infographic(self, product_data, design_settings):
-        """Создание инфографики с информацией об упаковке"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#F5F5F5'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Верхняя часть с коробкой
-            draw.rectangle([0, 0, width, 250], fill=self.hex_to_rgb('#2C3E50'))
-            
-            # Рисуем коробку
-            box_top = [(width//2 - 150, 70), (width//2 + 150, 170)]
-            draw.rectangle(box_top, fill=self.hex_to_rgb('#E67E22'), outline='white', width=3)
-            
-            # Крышка
-            draw.polygon([(width//2 - 170, 70), (width//2, 40), (width//2 + 170, 70)], 
-                        fill=self.hex_to_rgb('#F39C12'))
-            
-            draw.text((width//2 - 50, 110), "ПОСЫЛКА", fill='white')
-            
-            y_pos = 280
-            
-            # Информация об упаковке
-            package_info = product_data.get('package', {})
-            
-            # Карточки с информацией
-            cards = [
-                ("📦 Размер упаковки", package_info.get('size', '30x30x30 см')),
-                ("⚖️ Вес", package_info.get('weight', '1.5 кг')),
-                ("📦 В коробке", package_info.get('quantity', '1 шт')),
-                ("🏭 Производитель", package_info.get('manufacturer', 'Россия'))
-            ]
-            
-            for i, (label, value) in enumerate(cards):
-                card_x = 50 + (i % 2) * 400
-                card_y = y_pos + (i // 2) * 120
-                
-                draw.rectangle([card_x, card_y, card_x + 350, card_y + 100], 
-                              fill='white', outline=self.hex_to_rgb('#3498DB'), width=2)
-                draw.text((card_x + 20, card_y + 20), label, fill='black')
-                draw.text((card_x + 20, card_y + 60), value, fill=self.hex_to_rgb('#2C3E50'))
-            
-            y_pos += 300
-            
-            # Состав комплекта
-            if 'contents' in product_data:
-                draw.rectangle([50, y_pos, width-50, y_pos + 60 + len(product_data['contents'])*30], 
-                              fill='white', outline=self.hex_to_rgb('#27AE60'), width=2)
-                draw.text((70, y_pos + 15), "📋 В комплекте:", fill='black')
-                
-                for i, item in enumerate(product_data['contents']):
-                    draw.text((90, y_pos + 50 + i*30), f"✓ {item}", fill=self.hex_to_rgb('#27AE60'))
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания упаковки: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
-    
-    def create_certificate_infographic(self, product_data, design_settings):
-        """Создание инфографики с сертификатами и наградами"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#F8F9FA'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Верхний баннер
-            draw.rectangle([0, 0, width, 150], fill=self.hex_to_rgb('#F1C40F'))
-            draw.text((50, 50), "🏆 СЕРТИФИКАТЫ И НАГРАДЫ", fill='black')
-            draw.text((50, 100), product_data.get('title', 'Подтвержденное качество'), fill='black')
-            
-            y_pos = 200
-            
-            # Сертификаты
-            certificates = product_data.get('certificates', [])
-            cols = 2
-            card_width = (width - 150) // cols
-            card_height = 200
-            
-            for i, cert in enumerate(certificates):
-                row = i // cols
-                col = i % cols
-                
-                x = 50 + col * (card_width + 50)
-                y = y_pos + row * (card_height + 30)
-                
-                # Рамка сертификата
-                draw.rectangle([x, y, x + card_width, y + card_height], 
-                              fill='white', outline=self.hex_to_rgb('#F1C40F'), width=3)
-                
-                # Медаль
-                draw.ellipse([x + 50, y + 30, x + 150, y + 130], 
-                            fill=self.hex_to_rgb('#F1C40F'), outline=self.hex_to_rgb('#D4AC0D'), width=3)
-                draw.text((x + 85, y + 70), "🏅", fill='black')
-                
-                # Название сертификата
-                draw.text((x + 180, y + 50), cert.get('name', 'Сертификат'), fill='black')
-                draw.text((x + 180, y + 80), cert.get('issuer', 'Орган сертификации'), 
-                         fill=self.hex_to_rgb('#7F8C8D'))
-                draw.text((x + 180, y + 110), cert.get('date', '2024'), 
-                         fill=self.hex_to_rgb('#7F8C8D'))
-            
-            y_pos += ((len(certificates) + cols - 1) // cols) * (card_height + 50)
-            
-            # Соответствие стандартам
-            if 'standards' in product_data:
-                draw.rectangle([50, y_pos, width-50, y_pos + 80 + len(product_data['standards'])*30], 
-                              fill=self.hex_to_rgb('#2980B9'))
-                draw.text((70, y_pos + 20), "✓ Соответствует стандартам:", fill='white')
-                
-                for i, std in enumerate(product_data['standards']):
-                    draw.text((90, y_pos + 60 + i*30), f"• {std}", fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания сертификатов: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
-    
-    def create_price_infographic(self, product_data, design_settings):
-        """Создание инфографики с ценами и акциями"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#FFFFFF'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Красный баннер для акции
-            draw.rectangle([0, 0, width, 200], fill=self.hex_to_rgb('#E74C3C'))
-            
-            # Процент скидки
-            discount = product_data.get('discount', '20')
-            draw.text((50, 50), f"-{discount}%", fill='white')
-            draw.text((50, 120), "СКИДКА", fill='white')
-            
-            # Цены
-            old_price = product_data.get('old_price', '5000')
-            new_price = product_data.get('new_price', '4000')
-            currency = product_data.get('currency', '₽')
-            
-            draw.text((width-300, 50), f"{old_price} {currency}", fill='white')
-            draw.line([(width-300, 85), (width-150, 85)], fill='white', width=3)
-            draw.text((width-300, 100), f"{new_price} {currency}", fill='white')
-            
-            y_pos = 250
-            
-            # Преимущества покупки
-            benefits = product_data.get('benefits', [
-                "Бесплатная доставка",
-                "Гарантия 2 года",
-                "Подарок при покупке"
-            ])
-            
-            for i, benefit in enumerate(benefits):
-                draw.ellipse([50, y_pos + i*50, 80, y_pos + i*50 + 30], 
-                            fill=self.hex_to_rgb('#27AE60'))
-                draw.text((100, y_pos + i*50 + 5), benefit, fill='black')
-            
-            y_pos += len(benefits) * 50 + 30
-            
-            # Таймер акции
-            if 'timer' in product_data:
-                draw.rectangle([50, y_pos, width-50, y_pos+100], 
-                              fill=self.hex_to_rgb('#F39C12'))
-                draw.text((70, y_pos + 20), "⏰ До конца акции:", fill='white')
-                draw.text((70, y_pos + 60), product_data['timer'], fill='white')
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания цен: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
-    
-    def create_materials_infographic(self, product_data, design_settings):
-        """Создание инфографики с материалами и составом"""
-        try:
-            width = design_settings.get('width', 900)
-            height = design_settings.get('height', 1200)
-            bg_color = self.hex_to_rgb(design_settings.get('bg_color', '#F8F9FA'))
-            
-            img = Image.new('RGB', (width, height), bg_color)
-            draw = ImageDraw.Draw(img)
-            
-            # Заголовок
-            draw.rectangle([0, 0, width, 80], fill=self.hex_to_rgb('#27AE60'))
-            draw.text((50, 30), f"🔬 {product_data.get('title', 'Состав и материалы')}", fill='white')
-            
-            y_pos = 120
-            
-            # Основные материалы
-            materials = product_data.get('materials', {})
-            
-            # Круговая диаграмма (упрощенно)
-            center_x, center_y = width // 2, 300
-            radius = 150
-            
-            draw.ellipse([center_x - radius, center_y - radius, 
-                         center_x + radius, center_y + radius], 
-                        outline='black', width=2)
-            
-            # Сегменты (упрощенно)
-            colors = ['#3498DB', '#E74C3C', '#F39C12', '#27AE60', '#9B59B6']
-            total = sum(materials.values())
-            start_angle = 0
-            
-            legend_y = center_y + radius + 30
-            for i, (mat, value) in enumerate(materials.items()):
-                # Сегмент
-                angle = 360 * value / total
-                # В реальном приложении здесь нужно рисовать сектор
-                # Упрощенно: просто показываем проценты
-                
-                # Легенда
-                draw.rectangle([50, legend_y + i*40, 80, legend_y + i*40 + 30], 
-                              fill=self.hex_to_rgb(colors[i % len(colors)]))
-                draw.text((100, legend_y + i*40 + 5), f"{mat}: {value}%", fill='black')
-            
-            y_pos = 500
-            
-            # Детальный состав
-            if 'composition' in product_data:
-                draw.rectangle([50, y_pos, width-50, y_pos + 150], 
-                              fill='white', outline=self.hex_to_rgb('#27AE60'), width=2)
-                draw.text((70, y_pos + 15), "📋 Детальный состав:", fill='black')
-                
-                comp_lines = self.wrap_text(product_data['composition'], 60)
-                for i, line in enumerate(comp_lines):
-                    draw.text((70, y_pos + 50 + i*25), line, fill=self.hex_to_rgb('#7F8C8D'))
-            
-            return img
-        except Exception as e:
-            st.error(f"Ошибка создания материалов: {str(e)}")
-            return Image.new('RGB', (900, 1200), 'white')
-    
-    def wrap_text(self, text, max_chars):
-        """Разбивка текста на строки"""
-        words = text.split()
-        lines = []
-        current_line = []
-        current_length = 0
-        
-        for word in words:
-            if current_length + len(word) + 1 <= max_chars:
-                current_line.append(word)
-                current_length += len(word) + 1
-            else:
-                if current_line:
-                    lines.append(' '.join(current_line))
-                current_line = [word]
-                current_length = len(word)
-        
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        return lines
-    
-    def combine_with_product_image(self, infographic, product_image, position='right'):
-        """Объединение инфографики с фото товара"""
-        try:
-            if not product_image:
-                return infographic
-            
-            # Изменяем размер фото
-            product_image.thumbnail((400, 400))
-            
-            # Создаем холст
-            width = max(infographic.width, product_image.width + 50)
-            height = infographic.height + product_image.height + 50
-            
-            result = Image.new('RGB', (width, height), 'white')
-            
-            if position == 'right':
-                result.paste(infographic, (0, 0))
-                result.paste(product_image, (infographic.width + 20, 20))
-            elif position == 'left':
-                result.paste(product_image, (20, 20))
-                result.paste(infographic, (product_image.width + 40, 0))
-            elif position == 'top':
-                result.paste(product_image, ((width - product_image.width)//2, 20))
-                result.paste(infographic, (0, product_image.height + 40))
-            else:  # bottom
-                result.paste(infographic, (0, 0))
-                result.paste(product_image, ((width - product_image.width)//2, infographic.height + 20))
-            
-            return result
-        except Exception as e:
-            st.error(f"Ошибка объединения: {str(e)}")
-            return infographic
+    if 'total_files' not in st.session_state:
+        st.session_state.total_files = 0
 
-# ================ ИНТЕРФЕЙС ПОЛЬЗОВАТЕЛЯ ================
+# ================ ЦВЕТОВЫЕ ПАЛИТРЫ ================
+COLOR_PALETTES = {
+    "Corporate Blue": {"primary": "#1E3A8A", "secondary": "#2563EB", "accent": "#3B82F6", "background": "#F0F9FF"},
+    "Modern Gradient": {"primary": "#8B5CF6", "secondary": "#EC4899", "accent": "#F59E0B", "background": "#FDF4FF"},
+    "Earthy Tones": {"primary": "#92400E", "secondary": "#B45309", "accent": "#D97706", "background": "#FFFBEB"},
+    "Ocean Vibes": {"primary": "#0F766E", "secondary": "#0891B2", "accent": "#06B6D4", "background": "#ECFEFF"},
+    "Sunset": {"primary": "#B91C1C", "secondary": "#C2410C", "accent": "#F97316", "background": "#FFF7ED"},
+    "Minimal Gray": {"primary": "#374151", "secondary": "#4B5563", "accent": "#6B7280", "background": "#F9FAFB"},
+    "Fresh Green": {"primary": "#166534", "secondary": "#16A34A", "accent": "#4ADE80", "background": "#F0FDF4"},
+    "Royal Purple": {"primary": "#581C87", "secondary": "#6B21A8", "accent": "#9333EA", "background": "#FAF5FF"},
+    "Midnight": {"primary": "#020617", "secondary": "#0F172A", "accent": "#1E293B", "background": "#0B1120"},
+    "Pastel Dreams": {"primary": "#FBCFE8", "secondary": "#FDE68A", "accent": "#A7F3D0", "background": "#FDF2F8"}
+}
 
-def main():
-    st.title("📊 PRO Инфографика для карточек товаров")
-    st.markdown("---")
+# ================ РАЗМЕРЫ ================
+IMAGE_SIZES = {
+    "Instagram Square": {"width": 1080, "height": 1080},
+    "Instagram Portrait": {"width": 1080, "height": 1350},
+    "Instagram Landscape": {"width": 1080, "height": 566},
+    "Facebook Post": {"width": 1200, "height": 630},
+    "Twitter Post": {"width": 1600, "height": 900},
+    "LinkedIn Post": {"width": 1200, "height": 627},
+    "Presentation 16:9": {"width": 1920, "height": 1080},
+    "Presentation 4:3": {"width": 1024, "height": 768},
+    "A4 Portrait": {"width": 2480, "height": 3508},
+    "A4 Landscape": {"width": 3508, "height": 2480},
+    "Custom": {"width": 1920, "height": 1080}
+}
+
+# ================ ФОНОВЫЕ ЭФФЕКТЫ ================
+BACKGROUND_EFFECTS = {
+    "Solid": "solid",
+    "Linear Gradient": "gradient",
+    "Radial Gradient": "radial",
+    "Dots": "dots",
+    "Lines": "lines",
+    "Grid": "grid",
+    "Noise": "noise"
+}
+
+# ================ ФУНКЦИИ ДЛЯ РАБОТЫ С ШАБЛОНАМИ ================
+def render_template_preview(template_id):
+    """Отрисовка превью шаблона"""
     
-    # Инициализация
-    if 'generator' not in st.session_state:
-        st.session_state['generator'] = InfographicGenerator()
-        st.session_state['infographics'] = []
+    template = st.session_state.templates[template_id]
+    zones = template['zones']
     
-    generator = st.session_state['generator']
+    # Создаем фигуру для превью
+    fig = go.Figure()
     
-    # Боковая панель с типами инфографики
-    with st.sidebar:
-        st.header("🎨 Тип инфографики")
+    # Добавляем прямоугольники для каждой зоны
+    colors = ['#667eea', '#764ba2', '#f43f5e', '#10b981', '#f59e0b']
+    
+    for i, (zone_name, zone) in enumerate(zones.items()):
+        color = colors[i % len(colors)]
         
-        infographic_type = st.selectbox(
-            "Выберите тип",
-            [
-                "📏 Размерная сетка",
-                "📊 Технические характеристики",
-                "⚖️ Сравнение с конкурентами",
-                "💡 УТП и преимущества",
-                "📖 Инструкция",
-                "📦 Упаковка и комплектация",
-                "🏆 Сертификаты",
-                "💰 Цены и акции",
-                "🔬 Состав и материалы"
-            ]
+        # Добавляем прямоугольник
+        fig.add_shape(
+            type="rect",
+            x0=zone['x'],
+            y0=1 - zone['y'] - zone['height'],
+            x1=zone['x'] + zone['width'],
+            y1=1 - zone['y'],
+            line=dict(color=color, width=2),
+            fillcolor=color,
+            opacity=0.2
         )
         
-        st.markdown("---")
-        st.header("🎨 Дизайн")
-        
-        # Настройки дизайна
-        width = st.number_input("Ширина (px)", 600, 2000, 900)
-        height = st.number_input("Высота (px)", 800, 3000, 1200)
-        bg_color = st.color_picker("Цвет фона", "#FFFFFF")
-        title_color = st.color_picker("Цвет заголовка", "#2C3E50")
-        
-        design_settings = {
-            'width': width,
-            'height': height,
-            'bg_color': bg_color,
-            'title_color': title_color
-        }
-        
-        st.markdown("---")
-        st.caption("💡 Загрузите данные и изображения для создания инфографики")
+        # Добавляем текст
+        fig.add_annotation(
+            x=zone['x'] + zone['width']/2,
+            y=1 - zone['y'] - zone['height']/2,
+            text=f"<b>{zone_name}</b><br>{zone['type']}",
+            showarrow=False,
+            font=dict(size=10, color=color)
+        )
     
-    # Основные вкладки
-    tab1, tab2, tab3 = st.tabs(["📁 Данные", "🖼️ Предпросмотр", "📊 Результаты"])
+    fig.update_layout(
+        title=f"Шаблон: {template['name']}",
+        xaxis=dict(range=[0, 1], showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(range=[0, 1], showgrid=False, zeroline=False, showticklabels=False),
+        height=400,
+        margin=dict(l=20, r=20, t=40, b=20),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    return fig
+
+def create_template_editor():
+    """Создание редактора шаблонов"""
+    
+    st.markdown("### 🎨 Редактор шаблонов")
+    
+    # Выбор шаблона
+    template_options = {k: v['name'] for k, v in st.session_state.templates.items()}
+    selected_template = st.selectbox(
+        "Выберите шаблон для редактирования",
+        options=list(template_options.keys()),
+        format_func=lambda x: template_options[x],
+        key="template_selector"
+    )
+    
+    if selected_template:
+        st.session_state.current_template = selected_template
+        template = st.session_state.templates[selected_template]
+        
+        # Отображение превью
+        st.plotly_chart(render_template_preview(selected_template), use_container_width=True)
+        
+        # Редактор зон
+        st.markdown("#### Зоны шаблона")
+        
+        # Создаем колонки для зон
+        zones = list(template['zones'].items())
+        
+        # Группируем зоны по 2 в ряд
+        for i in range(0, len(zones), 2):
+            cols = st.columns(2)
+            for j in range(2):
+                if i + j < len(zones):
+                    zone_name, zone = zones[i + j]
+                    with cols[j]:
+                        with st.container():
+                            st.markdown(f"""
+                            <div class="text-box {'selected' if st.session_state.selected_zone == zone_name else ''}"
+                                 onclick="alert('selected_{zone_name}')">
+                                <b>{zone_name}</b> ({zone['type']})
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Кнопка выбора
+                            if st.button(f"✏️ Выбрать", key=f"select_{zone_name}"):
+                                st.session_state.selected_zone = zone_name
+                                st.rerun()
+        
+        # Если выбрана зона, показываем настройки
+        if st.session_state.selected_zone and st.session_state.selected_zone in template['zones']:
+            zone = template['zones'][st.session_state.selected_zone]
+            
+            st.markdown(f"#### Настройки зоны: {st.session_state.selected_zone}")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Позиция
+                st.markdown("**Позиция**")
+                x = st.slider("X", 0.0, 1.0, zone['x'], 0.01, key=f"x_{st.session_state.selected_zone}")
+                y = st.slider("Y", 0.0, 1.0, zone['y'], 0.01, key=f"y_{st.session_state.selected_zone}")
+                
+                # Размер
+                st.markdown("**Размер**")
+                width = st.slider("Ширина", 0.0, 1.0, zone['width'], 0.01, key=f"w_{st.session_state.selected_zone}")
+                height = st.slider("Высота", 0.0, 1.0, zone['height'], 0.01, key=f"h_{st.session_state.selected_zone}")
+            
+            with col2:
+                # Тип зоны
+                st.markdown("**Тип**")
+                zone_type = st.selectbox(
+                    "Тип контента",
+                    ["text", "metric", "chart", "image", "metrics_grid"],
+                    index=["text", "metric", "chart", "image", "metrics_grid"].index(zone['type']),
+                    key=f"type_{st.session_state.selected_zone}"
+                )
+                
+                # Привязка к колонке
+                if 'df' in st.session_state and st.session_state.df is not None:
+                    st.markdown("**Привязка данных**")
+                    columns = ['Нет'] + list(st.session_state.df.columns)
+                    current_col = zone.get('column', 'Нет')
+                    col_index = columns.index(current_col) if current_col in columns else 0
+                    
+                    selected_col = st.selectbox(
+                        "Колонка данных",
+                        columns,
+                        index=col_index,
+                        key=f"col_{st.session_state.selected_zone}"
+                    )
+                    zone['column'] = None if selected_col == 'Нет' else selected_col
+                
+                # Дополнительные настройки
+                if zone_type == 'text':
+                    zone['font_size'] = st.slider("Размер шрифта", 8, 72, zone.get('font_size', 24), key=f"font_{st.session_state.selected_zone}")
+                    zone['bold'] = st.checkbox("Жирный", zone.get('bold', False), key=f"bold_{st.session_state.selected_zone}")
+                    zone['italic'] = st.checkbox("Курсив", zone.get('italic', False), key=f"italic_{st.session_state.selected_zone}")
+                
+                elif zone_type == 'metric':
+                    zone['prefix'] = st.text_input("Префикс", zone.get('prefix', ''), key=f"prefix_{st.session_state.selected_zone}")
+                    zone['suffix'] = st.text_input("Суффикс", zone.get('suffix', ''), key=f"suffix_{st.session_state.selected_zone}")
+                    zone['decimals'] = st.number_input("Десятичных знаков", 0, 10, zone.get('decimals', 2), key=f"dec_{st.session_state.selected_zone}")
+            
+            # Кнопка сохранения
+            if st.button("💾 Сохранить изменения зоны", key=f"save_{st.session_state.selected_zone}", use_container_width=True):
+                template['zones'][st.session_state.selected_zone].update({
+                    'x': x, 'y': y, 'width': width, 'height': height,
+                    'type': zone_type
+                })
+                st.success(f"✅ Зона {st.session_state.selected_zone} обновлена!")
+                st.rerun()
+        
+        # Кнопка создания новой зоны
+        st.markdown("---")
+        if st.button("➕ Добавить новую зону", use_container_width=True):
+            new_zone_name = f"zone_{len(template['zones']) + 1}"
+            template['zones'][new_zone_name] = {
+                'x': 0.1, 'y': 0.1, 'width': 0.3, 'height': 0.2,
+                'type': 'text', 'column': None
+            }
+            st.success(f"✅ Добавлена зона: {new_zone_name}")
+            st.rerun()
+
+# ================ ФУНКЦИИ ДЛЯ ПАКЕТНОЙ ОБРАБОТКИ ================
+def process_single_file(file_data, template_id, color_theme, size_preset, bg_effect):
+    """Обработка одного файла"""
+    
+    try:
+        filename, file_content = file_data
+        
+        # Загрузка данных
+        if filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(file_content))
+        elif filename.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(io.BytesIO(file_content))
+        else:
+            return None
+        
+        # Получаем шаблон
+        template = st.session_state.templates[template_id]
+        color_palette = COLOR_PALETTES[color_theme]
+        size = IMAGE_SIZES[size_preset]
+        
+        # Создаем изображение
+        img = create_infographic_from_template(df, template, color_palette, size, bg_effect)
+        
+        # Сохраняем
+        output = io.BytesIO()
+        img.save(output, format='PNG', quality=95, dpi=(300, 300))
+        output.seek(0)
+        
+        return (filename.replace('.csv', '').replace('.xlsx', '').replace('.xls', '') + '.png', output.getvalue())
+        
+    except Exception as e:
+        return None
+
+def create_infographic_from_template(df, template, color_palette, size, bg_effect):
+    """Создание инфографики на основе шаблона"""
+    
+    width, height = size['width'], size['height']
+    
+    # Создаем фон
+    img = Image.new('RGB', (width, height), color_palette['background'])
+    draw = ImageDraw.Draw(img)
+    
+    # Применяем фоновый эффект
+    if bg_effect != "Solid":
+        apply_background_effect(img, bg_effect, color_palette)
+    
+    # Отрисовываем каждую зону
+    for zone_name, zone in template['zones'].items():
+        # Конвертируем относительные координаты в абсолютные
+        x1 = int(zone['x'] * width)
+        y1 = int(zone['y'] * height)
+        x2 = int((zone['x'] + zone['width']) * width)
+        y2 = int((zone['y'] + zone['height']) * height)
+        
+        # Рисуем рамку зоны (для отладки)
+        draw.rectangle([x1, y1, x2, y2], outline=color_palette['secondary'], width=2)
+        
+        # Добавляем контент в зависимости от типа
+        if zone['type'] == 'text':
+            # Текст из колонки или статичный
+            if zone.get('column') and zone['column'] in df.columns:
+                text = str(df[zone['column']].iloc[0])
+            else:
+                text = zone_name
+            
+            # Параметры текста
+            font_size = min(zone.get('font_size', 24), int(zone['height'] * height * 0.8))
+            
+            # Разбиваем текст на строки
+            words = text.split()
+            lines = []
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                if draw.textbbox((0, 0), test_line)[2] < (x2 - x1) * 0.9:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                    current_line = [word]
+            
+            if current_line:
+                lines.append(' '.join(current_line))
+            
+            # Отрисовываем текст
+            y_offset = y1 + 10
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line)
+                text_width = bbox[2] - bbox[0]
+                x_center = x1 + (x2 - x1 - text_width) // 2
+                draw.text((x_center, y_offset), line, fill=color_palette['primary'])
+                y_offset += bbox[3] - bbox[1] + 5
+        
+        elif zone['type'] == 'metric':
+            # Метрика из колонки
+            if zone.get('column') and zone['column'] in df.columns:
+                value = df[zone['column']].iloc[0]
+                
+                # Форматирование
+                prefix = zone.get('prefix', '')
+                suffix = zone.get('suffix', '')
+                decimals = zone.get('decimals', 2)
+                
+                if isinstance(value, (int, float)):
+                    formatted_value = f"{prefix}{value:,.{decimals}f}{suffix}"
+                else:
+                    formatted_value = f"{prefix}{value}{suffix}"
+                
+                # Отрисовка
+                font_size = min(36, int(zone['height'] * height * 0.5))
+                bbox = draw.textbbox((0, 0), formatted_value)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                x_center = x1 + (x2 - x1 - text_width) // 2
+                y_center = y1 + (y2 - y1 - text_height) // 2
+                
+                draw.text((x_center, y_center), formatted_value, fill=color_palette['primary'])
+        
+        elif zone['type'] == 'metrics_grid':
+            # Сетка метрик
+            numeric_cols = df.select_dtypes(include=[np.number]).columns[:4]
+            
+            if len(numeric_cols) > 0:
+                grid_cols = min(2, len(numeric_cols))
+                grid_rows = (len(numeric_cols) + grid_cols - 1) // grid_cols
+                
+                cell_width = (x2 - x1) // grid_cols
+                cell_height = (y2 - y1) // grid_rows
+                
+                for i, col in enumerate(numeric_cols):
+                    row = i // grid_cols
+                    col_idx = i % grid_cols
+                    
+                    cx1 = x1 + col_idx * cell_width
+                    cy1 = y1 + row * cell_height
+                    cx2 = cx1 + cell_width
+                    cy2 = cy1 + cell_height
+                    
+                    # Рамка ячейки
+                    draw.rectangle([cx1, cy1, cx2, cy2], outline=color_palette['accent'], width=1)
+                    
+                    # Значение
+                    value = df[col].iloc[0]
+                    formatted_value = f"{value:,.2f}"
+                    
+                    # Заголовок
+                    title_bbox = draw.textbbox((0, 0), col)
+                    title_x = cx1 + (cell_width - (title_bbox[2] - title_bbox[0])) // 2
+                    draw.text((title_x, cy1 + 5), col, fill=color_palette['secondary'])
+                    
+                    # Значение
+                    value_bbox = draw.textbbox((0, 0), formatted_value)
+                    value_x = cx1 + (cell_width - (value_bbox[2] - value_bbox[0])) // 2
+                    draw.text((value_x, cy2 - 30), formatted_value, fill=color_palette['primary'])
+    
+    return img
+
+def apply_background_effect(img, effect, color_palette):
+    """Применение фонового эффекта"""
+    
+    width, height = img.size
+    draw = ImageDraw.Draw(img)
+    
+    if effect == "gradient":
+        for i in range(height):
+            ratio = i / height
+            r = int(int(color_palette['primary'][1:3], 16) * (1 - ratio) + 
+                   int(color_palette['secondary'][1:3], 16) * ratio)
+            g = int(int(color_palette['primary'][3:5], 16) * (1 - ratio) + 
+                   int(color_palette['secondary'][3:5], 16) * ratio)
+            b = int(int(color_palette['primary'][5:7], 16) * (1 - ratio) + 
+                   int(color_palette['secondary'][5:7], 16) * ratio)
+            draw.line([(0, i), (width, i)], fill=(r, g, b))
+    
+    elif effect == "radial":
+        center_x, center_y = width // 2, height // 2
+        max_dist = np.sqrt(center_x**2 + center_y**2)
+        
+        for x in range(0, width, 5):
+            for y in range(0, height, 5):
+                dist = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+                ratio = dist / max_dist
+                
+                r = int(int(color_palette['primary'][1:3], 16) * (1 - ratio) + 
+                       int(color_palette['secondary'][3:5], 16) * ratio)
+                g = int(int(color_palette['primary'][3:5], 16) * (1 - ratio) + 
+                       int(color_palette['secondary'][5:7], 16) * ratio)
+                b = int(int(color_palette['primary'][5:7], 16) * (1 - ratio) + 
+                       int(color_palette['secondary'][7:9], 16) * ratio)
+                
+                draw.rectangle([x, y, x+5, y+5], fill=(r, g, b))
+    
+    elif effect == "dots":
+        dot_color = color_palette['secondary']
+        for x in range(0, width, 20):
+            for y in range(0, height, 20):
+                draw.ellipse([x-2, y-2, x+2, y+2], fill=dot_color)
+    
+    elif effect == "lines":
+        line_color = color_palette['accent']
+        for x in range(0, width, 30):
+            draw.line([(x, 0), (x, height)], fill=line_color, width=1)
+    
+    elif effect == "grid":
+        grid_color = color_palette['accent']
+        for x in range(0, width, 50):
+            draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+        for y in range(0, height, 50):
+            draw.line([(0, y), (width, y)], fill=grid_color, width=1)
+    
+    elif effect == "noise":
+        noise = np.random.randint(0, 30, (height, width, 3), dtype=np.uint8)
+        noise_img = Image.fromarray(noise)
+        img = Image.blend(img, noise_img, alpha=0.1)
+
+# ================ ФУНКЦИИ ДЛЯ ПАКЕТНОЙ ОБРАБОТКИ С ПРОГРЕССОМ ================
+def process_batch_files_parallel(files, template_id, color_theme, size_preset, bg_effect, max_workers=10):
+    """Параллельная обработка файлов"""
+    
+    total = len(files)
+    processed = []
+    failed = []
+    
+    # Создаем данные для обработки
+    file_data = [(f.name, f.getvalue()) for f in files]
+    
+    # Прогресс бар
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    # Используем ThreadPoolExecutor для параллельной обработки
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_single_file, fd, template_id, color_theme, size_preset, bg_effect): fd[0] 
+                  for fd in file_data}
+        
+        completed = 0
+        for future in as_completed(futures):
+            filename = futures[future]
+            try:
+                result = future.result(timeout=30)
+                if result:
+                    processed.append(result)
+                else:
+                    failed.append(filename)
+            except Exception as e:
+                failed.append(filename)
+            
+            completed += 1
+            progress = completed / total
+            progress_bar.progress(progress)
+            status_text.text(f"🔄 Обработано: {completed}/{total} | Успешно: {len(processed)} | Ошибок: {len(failed)}")
+    
+    return processed, failed
+
+# ================ ОСНОВНОЙ ИНТЕРФЕЙС ================
+def main():
+    """Основная функция"""
+    
+    # Заголовок
+    st.markdown('<h1 class="main-header">⚡ MEGA Infographic Factory</h1>', unsafe_allow_html=True)
+    
+    # Инициализация состояния
+    init_session_state()
+    
+    # Вкладки
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🎨 Редактор шаблонов",
+        "📦 Пакетная обработка",
+        "📊 Данные",
+        "⚙️ Настройки"
+    ])
     
     with tab1:
-        st.header("1. Загрузка данных")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("📊 Excel с данными")
-            data_file = st.file_uploader(
-                "Загрузите файл с данными",
-                type=["xlsx", "xls", "csv"],
-                key="data_file"
-            )
-            
-            if data_file:
-                try:
-                    if data_file.name.endswith('.csv'):
-                        df = pd.read_csv(data_file)
-                    else:
-                        df = pd.read_excel(data_file)
-                    
-                    st.dataframe(df.head(), use_container_width=True)
-                    st.session_state['df'] = df
-                except Exception as e:
-                    st.error(f"Ошибка: {str(e)}")
-        
-        with col2:
-            st.subheader("🖼️ Изображения товаров")
-            product_images = st.file_uploader(
-                "Загрузите фото товаров",
-                type=["jpg", "jpeg", "png"],
-                accept_multiple_files=True,
-                key="product_images"
-            )
-            
-            if product_images:
-                st.success(f"Загружено {len(product_images)} изображений")
-                # Правильное присвоение в session_state
-                st.session_state['product_images'] = {f.name: Image.open(f) for f in product_images}
-        
-        # Данные для конкретного типа инфографики
-        st.subheader(f"📝 Данные для {infographic_type}")
-        
-        # В зависимости от выбранного типа собираем данные
-        if 'infographic_type' not in st.session_state:
-            st.session_state['infographic_type'] = infographic_type
-        else:
-            st.session_state['infographic_type'] = infographic_type
-        
-        if infographic_type == "📏 Размерная сетка":
-            sizes = st.text_input("Размеры (через запятую)", "XS,S,M,L,XL")
-            measurements = st.text_input("Измерения (через запятую)", "Длина,Ширина,Высота")
-            size_tip = st.text_input("Совет по выбору", "Выбирайте по самой широкой части")
-            st.session_state['infographic_data'] = {
-                'title': 'Размерная сетка',
-                'sizes': [s.strip() for s in sizes.split(',')],
-                'measurements': [m.strip() for m in measurements.split(',')],
-                'size_tip': size_tip
-            }
-        elif infographic_type == "📊 Технические характеристики":
-            specs_text = st.text_area(
-                "Характеристики (каждая с новой строки)",
-                "Мощность: 100 Вт\nНапряжение: 12 В\nВес: 1.5 кг"
-            )
-            benefits = st.text_area("Преимущества (каждое с новой строки)", 
-                                    "Высокое качество\nДолговечность\nГарантия")
-            specs = {}
-            for line in specs_text.split('\n'):
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    specs[key.strip()] = value.strip()
-            st.session_state['infographic_data'] = {
-                'title': 'Технические характеристики',
-                'specs': specs,
-                'benefits': [b.strip() for b in benefits.split('\n') if b.strip()]
-            }
-        elif infographic_type == "⚖️ Сравнение с конкурентами":
-            our_product = st.text_input("Название нашего товара", "Наш товар")
-            competitors = st.text_input("Конкуренты (через запятую)", "Бренд А, Бренд Б, Бренд В")
-            features_text = st.text_area(
-                "Характеристики (каждая с новой строки в формате: Название | Наше значение | Значение А | Значение Б | Значение В)",
-                "Цена | 1000 | 1500 | 1200 | 1800\nКачество | 5 | 4 | 3 | 4"
-            )
-            features = []
-            for line in features_text.split('\n'):
-                parts = [p.strip() for p in line.split('|')]
-                if len(parts) >= 2:
-                    feature = {
-                        'name': parts[0],
-                        'our': parts[1] if len(parts) > 1 else '',
-                        'competitors': parts[2:] if len(parts) > 2 else []
-                    }
-                    features.append(feature)
-            st.session_state['infographic_data'] = {
-                'title': 'Сравнение',
-                'our_product': our_product,
-                'competitors': [c.strip() for c in competitors.split(',')],
-                'features': features,
-                'conclusion': 'Лучшее соотношение цены и качества'
-            }
-        elif infographic_type == "💡 УТП и преимущества":
-            title = st.text_input("Название товара", "Наш товар")
-            subtitle = st.text_input("Подзаголовок", "Почему стоит выбрать?")
-            price = st.text_input("Цена", "1 500 ₽")
-            benefits = st.text_area("Преимущества", "Высокое качество\nДолговечность\nГарантия")
-            usp_items = []
-            for i in range(5):
-                with st.expander(f"Преимущество {i+1}"):
-                    usp_title = st.text_input(f"Заголовок {i+1}", f"Преимущество {i+1}", key=f"usp_title_{i}")
-                    usp_desc = st.text_area(f"Описание {i+1}", f"Описание преимущества {i+1}", key=f"usp_desc_{i}")
-                    if usp_title:
-                        usp_items.append({'title': usp_title, 'description': usp_desc})
-            st.session_state['infographic_data'] = {
-                'title': title,
-                'subtitle': subtitle,
-                'price': price,
-                'usp': usp_items
-            }
-        elif infographic_type == "📖 Инструкция":
-            title = st.text_input("Название", "Инструкция по применению")
-            warning = st.text_input("Предупреждение", "Перед использованием ознакомьтесь с инструкцией")
-            steps = []
-            for i in range(5):
-                with st.expander(f"Шаг {i+1}"):
-                    step_title = st.text_input(f"Заголовок шага {i+1}", f"Шаг {i+1}", key=f"step_title_{i}")
-                    step_desc = st.text_area(f"Описание {i+1}", f"Описание шага {i+1}", key=f"step_desc_{i}")
-                    step_icon = st.text_input(f"Иконка (эмодзи) {i+1}", "➡️", key=f"step_icon_{i}")
-                    if step_title:
-                        steps.append({
-                            'title': step_title,
-                            'description': step_desc,
-                            'icon': step_icon
-                        })
-            st.session_state['infographic_data'] = {
-                'title': title,
-                'warning': warning,
-                'steps': steps
-            }
-        elif infographic_type == "📦 Упаковка и комплектация":
-            size = st.text_input("Размер упаковки", "30x30x30 см")
-            weight = st.text_input("Вес", "1.5 кг")
-            quantity = st.text_input("Количество в упаковке", "1 шт")
-            manufacturer = st.text_input("Производитель", "Россия")
-            contents = st.text_area("Состав комплекта (каждый с новой строки)", 
-                                   "Товар\nИнструкция\nГарантийный талон")
-            st.session_state['infographic_data'] = {
-                'package': {
-                    'size': size,
-                    'weight': weight,
-                    'quantity': quantity,
-                    'manufacturer': manufacturer
-                },
-                'contents': [c.strip() for c in contents.split('\n') if c.strip()]
-            }
-        elif infographic_type == "🏆 Сертификаты":
-            title = st.text_input("Название", "Сертификаты и награды")
-            certificates = []
-            for i in range(4):
-                with st.expander(f"Сертификат {i+1}"):
-                    cert_name = st.text_input(f"Название {i+1}", f"Сертификат {i+1}", key=f"cert_name_{i}")
-                    cert_issuer = st.text_input(f"Кем выдан {i+1}", f"Орган сертификации", key=f"cert_issuer_{i}")
-                    cert_date = st.text_input(f"Дата {i+1}", "2024", key=f"cert_date_{i}")
-                    if cert_name:
-                        certificates.append({
-                            'name': cert_name,
-                            'issuer': cert_issuer,
-                            'date': cert_date
-                        })
-            standards = st.text_area("Соответствие стандартам (каждый с новой строки)", "ISO 9001\nГОСТ Р\nCE")
-            st.session_state['infographic_data'] = {
-                'title': title,
-                'certificates': certificates,
-                'standards': [s.strip() for s in standards.split('\n') if s.strip()]
-            }
-        elif infographic_type == "💰 Цены и акции":
-            discount = st.text_input("Скидка %", "20")
-            old_price = st.text_input("Старая цена", "5000")
-            new_price = st.text_input("Новая цена", "4000")
-            currency = st.selectbox("Валюта", ["₽", "$", "€"])
-            benefits = st.text_area("Преимущества покупки (каждое с новой строки)", "Бесплатная доставка\nГарантия 2 года\nПодарок")
-            timer = st.text_input("Таймер акции", "24:00:00")
-            st.session_state['infographic_data'] = {
-                'discount': discount,
-                'old_price': old_price,
-                'new_price': new_price,
-                'currency': currency,
-                'benefits': [b.strip() for b in benefits.split('\n') if b.strip()],
-                'timer': timer
-            }
-        elif infographic_type == "🔬 Состав и материалы":
-            title = st.text_input("Название", "Состав и материалы")
-            st.info("Введите состав в процентах")
-            materials = {}
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                mat1 = st.text_input("Материал 1", "Металл")
-                val1 = st.number_input("%", 0, 100, 70, key="mat1")
-                if mat1:
-                    materials[mat1] = val1
-            with col_m2:
-                mat2 = st.text_input("Материал 2", "Пластик")
-                val2 = st.number_input("%", 0, 100, 20, key="mat2")
-                if mat2:
-                    materials[mat2] = val2
-            col_m3, col_m4 = st.columns(2)
-            with col_m3:
-                mat3 = st.text_input("Материал 3", "Резина")
-                val3 = st.number_input("%", 0, 100, 10, key="mat3")
-                if mat3:
-                    materials[mat3] = val3
-            composition = st.text_area("Детальный состав", "Подробное описание состава материала...")
-            st.session_state['infographic_data'] = {
-                'title': title,
-                'materials': materials,
-                'composition': composition
-            }
+        create_template_editor()
     
     with tab2:
-        st.header("2. Предпросмотр")
-        if st.button("🎨 Создать предпросмотр", use_container_width=True):
-            data = st.session_state.get('infographic_data', {})
-            # Добавляем изображение если есть
-            if 'product_images' in st.session_state:
-                if st.session_state['product_images']:
-                    first_img = list(st.session_state['product_images'].values())[0]
-                    data['product_image'] = first_img
-            # Создаем инфографику в зависимости от типа
-            if 'infographic_type' in st.session_state:
-                infographic_type = st.session_state['infographic_type']
-            else:
-                infographic_type = "📏 Размерная сетка"
-            if infographic_type == "📏 Размерная сетка":
-                result = generator.create_size_chart_infographic(data, design_settings)
-            elif infographic_type == "📊 Технические характеристики":
-                result = generator.create_specs_infographic(data, design_settings)
-            elif infographic_type == "⚖️ Сравнение с конкурентами":
-                result = generator.create_comparison_infographic(data, design_settings)
-            elif infographic_type == "💡 УТП и преимущества":
-                result = generator.create_usp_infographic(data, design_settings)
-            elif infographic_type == "📖 Инструкция":
-                result = generator.create_instruction_infographic(data, design_settings)
-            elif infographic_type == "📦 Упаковка и комплектация":
-                result = generator.create_package_infographic(data, design_settings)
-            elif infographic_type == "🏆 Сертификаты":
-                result = generator.create_certificate_infographic(data, design_settings)
-            elif infographic_type == "💰 Цены и акции":
-                result = generator.create_price_infographic(data, design_settings)
-            elif infographic_type == "🔬 Состав и материалы":
-                result = generator.create_materials_infographic(data, design_settings)
-            else:
-                result = Image.new('RGB', (900, 1200), 'white')
-            st.image(result, caption="Предпросмотр инфографики", use_container_width=True)
-            st.session_state['preview'] = result
+        st.markdown("### 📦 Пакетная обработка файлов")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            # Загрузка файлов
+            uploaded_files = st.file_uploader(
+                "Загрузите файлы для обработки (до 10000)",
+                type=['csv', 'xlsx', 'xls'],
+                accept_multiple_files=True,
+                key="batch_uploader"
+            )
+            
+            if uploaded_files:
+                st.success(f"✅ Загружено файлов: {len(uploaded_files)}")
+                
+                # Настройки обработки
+                st.markdown("### ⚙️ Настройки обработки")
+                
+                # Выбор шаблона
+                template_options = {k: v['name'] for k, v in st.session_state.templates.items()}
+                selected_template = st.selectbox(
+                    "Шаблон",
+                    options=list(template_options.keys()),
+                    format_func=lambda x: template_options[x],
+                    key="batch_template"
+                )
+                
+                # Цветовая тема
+                color_theme = st.selectbox(
+                    "Цветовая тема",
+                    list(COLOR_PALETTES.keys()),
+                    index=0
+                )
+                
+                # Размер
+                size_preset = st.selectbox(
+                    "Размер",
+                    list(IMAGE_SIZES.keys()),
+                    index=0
+                )
+                
+                # Фон
+                bg_effect = st.selectbox(
+                    "Фоновый эффект",
+                    list(BACKGROUND_EFFECTS.keys()),
+                    index=0
+                )
+                
+                # Количество потоков
+                max_workers = st.slider(
+                    "Параллельных потоков",
+                    min_value=1,
+                    max_value=20,
+                    value=10,
+                    help="Больше потоков = быстрее обработка, но больше нагрузка"
+                )
+                
+                # Кнопка запуска
+                if st.button("🚀 Запустить пакетную обработку", key="start_batch", use_container_width=True):
+                    with st.spinner("Обработка файлов..."):
+                        processed, failed = process_batch_files_parallel(
+                            uploaded_files,
+                            selected_template,
+                            color_theme,
+                            size_preset,
+                            bg_effect,
+                            max_workers
+                        )
+                        
+                        # Сохраняем результаты
+                        st.session_state.processed_files = processed
+                        
+                        # Показываем результаты
+                        st.markdown("### 📊 Результаты обработки")
+                        
+                        col_r1, col_r2, col_r3 = st.columns(3)
+                        with col_r1:
+                            st.metric("Всего файлов", len(uploaded_files))
+                        with col_r2:
+                            st.metric("Успешно", len(processed))
+                        with col_r3:
+                            st.metric("С ошибками", len(failed))
+                        
+                        if failed:
+                            with st.expander("❌ Файлы с ошибками"):
+                                for f in failed:
+                                    st.write(f"• {f}")
+        
+        with col2:
+            if st.session_state.processed_files:
+                st.markdown("### 📥 Результаты готовы")
+                
+                # Превью первого файла
+                if len(st.session_state.processed_files) > 0:
+                    st.markdown("#### Превью:")
+                    preview_data = st.session_state.processed_files[0][1]
+                    st.image(preview_data, use_column_width=True)
+                
+                # Создание ZIP архива
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    for filename, data in st.session_state.processed_files:
+                        zip_file.writestr(filename, data)
+                
+                zip_buffer.seek(0)
+                
+                # Кнопка скачивания
+                st.download_button(
+                    "📥 Скачать все файлы (ZIP)",
+                    data=zip_buffer,
+                    file_name=f"infographics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
+                
+                # Очистка
+                if st.button("🗑️ Очистить результаты", use_container_width=True):
+                    st.session_state.processed_files = []
+                    st.rerun()
     
     with tab3:
-        st.header("3. Готовые результаты")
-        if 'df' in st.session_state and 'product_images' in st.session_state:
-            if st.button("🚀 СОЗДАТЬ ДЛЯ ВСЕХ ТОВАРОВ", type="primary", use_container_width=True):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                processed_files = []
-                df = st.session_state['df']
-                total = len(df)
-                for idx, row in df.iterrows():
-                    try:
-                        status_text.text(f"Обработка: строка {idx+1}/{total}")
-                        # Берем данные из строки
-                        data = st.session_state.get('infographic_data', {}).copy()
-                        # Подставляем значения из DataFrame
-                        for key in data:
-                            if isinstance(data[key], str) and '{' in data[key]:
-                                try:
-                                    data[key] = data[key].format(**row.to_dict())
-                                except:
-                                    pass
-                        # Ищем изображение
-                        article = str(row.get(st.session_state.get('article_col', 'Артикул'), ''))
-                        product_img = None
-                        if 'product_images' in st.session_state:
-                            for fname, img in st.session_state['product_images'].items():
-                                if article in fname or fname.startswith(article):
-                                    product_img = img.copy()
-                                    break
-                        if product_img:
-                            data['product_image'] = product_img
-                        # Создаем инфографику
-                        if 'infographic_type' in st.session_state:
-                            infographic_type = st.session_state['infographic_type']
-                        else:
-                            infographic_type = "📏 Размерная сетка"
-                        if infographic_type == "📏 Размерная сетка":
-                            result = generator.create_size_chart_infographic(data, design_settings)
-                        elif infographic_type == "📊 Технические характеристики":
-                            result = generator.create_specs_infographic(data, design_settings)
-                        elif infographic_type == "⚖️ Сравнение с конкурентами":
-                            result = generator.create_comparison_infographic(data, design_settings)
-                        elif infographic_type == "💡 УТП и преимущества":
-                            result = generator.create_usp_infographic(data, design_settings)
-                        elif infographic_type == "📖 Инструкция":
-                            result = generator.create_instruction_infographic(data, design_settings)
-                        elif infographic_type == "📦 Упаковка и комплектация":
-                            result = generator.create_package_infographic(data, design_settings)
-                        elif infographic_type == "🏆 Сертификаты":
-                            result = generator.create_certificate_infographic(data, design_settings)
-                        elif infographic_type == "💰 Цены и акции":
-                            result = generator.create_price_infographic(data, design_settings)
-                        elif infographic_type == "🔬 Состав и материалы":
-                            result = generator.create_materials_infographic(data, design_settings)
-                        else:
-                            continue
-                        # Сохраняем
-                        img_bytes = io.BytesIO()
-                        result.save(img_bytes, format='PNG')
-                        filename = f"{article}_{infographic_type[:10]}.png"
-                        processed_files.append((filename, img_bytes.getvalue()))
-                    except Exception as e:
-                        st.error(f"Ошибка: {str(e)}")
-                    progress_bar.progress((idx + 1) / total)
-                status_text.text("✅ Готово!")
-                if processed_files:
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                        for filename, data in processed_files:
-                            zip_file.writestr(filename, data)
-                    zip_buffer.seek(0)
-                    st.download_button(
-                        "📥 Скачать ZIP архив",
-                        data=zip_buffer,
-                        file_name=f"infographics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                        mime="application/zip",
-                        use_container_width=True
-                    )
-        else:
-            st.info("Загрузите данные и изображения во вкладке 'Данные'")
+        st.markdown("### 📊 Загрузка данных")
+        
+        # Загрузка данных для привязки колонок
+        data_file = st.file_uploader(
+            "Загрузите файл с данными (для настройки шаблона)",
+            type=['csv', 'xlsx', 'xls'],
+            key="data_uploader"
+        )
+        
+        if data_file:
+            try:
+                if data_file.name.endswith('.csv'):
+                    df = pd.read_csv(data_file)
+                else:
+                    df = pd.read_excel(data_file)
+                
+                st.session_state.df = df
+                
+                st.success(f"✅ Загружено: {len(df)} строк, {len(df.columns)} колонок")
+                
+                # Превью данных
+                with st.expander("👁️ Превью данных"):
+                    st.dataframe(df.head(100), use_container_width=True)
+                    
+                    # Статистика
+                    st.markdown("#### Статистика")
+                    
+                    # Числовые колонки
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns
+                    if len(numeric_cols) > 0:
+                        st.markdown("**Числовые колонки:**")
+                        st.dataframe(df[numeric_cols].describe(), use_container_width=True)
+                    
+                    # Текстовые колонки
+                    text_cols = df.select_dtypes(include=['object']).columns
+                    if len(text_cols) > 0:
+                        st.markdown("**Текстовые колонки:**")
+                        for col in text_cols[:5]:
+                            st.write(f"• {col}: {df[col].iloc[0] if len(df) > 0 else 'нет данных'}")
+            
+            except Exception as e:
+                st.error(f"Ошибка загрузки: {str(e)}")
+    
+    with tab4:
+        st.markdown("### ⚙️ Настройки приложения")
+        
+        col_s1, col_s2 = st.columns(2)
+        
+        with col_s1:
+            st.markdown("#### Общие настройки")
+            
+            # Максимальное количество файлов
+            max_files = st.number_input(
+                "Максимум файлов для пакетной обработки",
+                min_value=100,
+                max_value=50000,
+                value=10000,
+                step=1000
+            )
+            
+            # Таймаут обработки
+            timeout = st.number_input(
+                "Таймаут обработки (сек)",
+                min_value=10,
+                max_value=300,
+                value=60,
+                step=10
+            )
+            
+            # Качество изображений
+            image_quality = st.slider(
+                "Качество изображений",
+                min_value=50,
+                max_value=100,
+                value=95
+            )
+            
+            # DPI для печати
+            dpi = st.slider(
+                "DPI",
+                min_value=72,
+                max_value=600,
+                value=300,
+                step=72
+            )
+        
+        with col_s2:
+            st.markdown("#### Пути сохранения")
+            
+            # Папка для сохранения
+            save_folder = st.text_input(
+                "Папка для сохранения",
+                value="./output"
+            )
+            
+            # Формат имени файлов
+            name_format = st.text_input(
+                "Формат имени",
+                value="{filename}_{date}"
+            )
+            
+            # Создание папки если не существует
+            if st.button("📁 Создать папку", use_container_width=True):
+                os.makedirs(save_folder, exist_ok=True)
+                st.success(f"✅ Папка создана: {save_folder}")
+        
+        st.markdown("#### Управление шаблонами")
+        
+        col_t1, col_t2, col_t3 = st.columns(3)
+        
+        with col_t1:
+            # Экспорт шаблонов
+            if st.button("📤 Экспорт шаблонов", use_container_width=True):
+                templates_json = json.dumps(st.session_state.templates, indent=2)
+                st.download_button(
+                    "📥 Скачать шаблоны",
+                    data=templates_json,
+                    file_name="templates_backup.json",
+                    mime="application/json"
+                )
+        
+        with col_t2:
+            # Импорт шаблонов
+            uploaded_json = st.file_uploader(
+                "Импорт шаблонов",
+                type=['json'],
+                key="template_import"
+            )
+            
+            if uploaded_json:
+                try:
+                    imported = json.load(uploaded_json)
+                    st.session_state.templates.update(imported)
+                    st.success("✅ Шаблоны импортированы")
+                except Exception as e:
+                    st.error(f"Ошибка импорта: {str(e)}")
+        
+        with col_t3:
+            # Сброс к стандартным
+            if st.button("🔄 Сброс к стандартным", use_container_width=True):
+                init_session_state()
+                st.success("✅ Настройки сброшены")
+                st.rerun()
 
 # ================ ЗАПУСК ================
-
 if __name__ == "__main__":
     main()
