@@ -1,7 +1,9 @@
-streamlit
-pillow
-numpy
-pandas
-openpyxl
-qrcode
-python-barcode
+streamlit==1.23.1
+pandas==1.5.3
+plotly==5.13.1
+Pillow==9.4.0
+numpy==1.23.5
+# Для работы с файлами Excel
+openpyxl==3.0.10
+# Для работы с асинхронностью и потоками (встроены в стандартную библиотеку)
+# Для JSON и base64 - также встроены в стандартную библиотеку
