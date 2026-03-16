@@ -324,7 +324,7 @@ def run_app():
                     for idx, file in enumerate(uploaded_files[:8]):
                         with preview_cols[idx % 4]:
                             img = Image.open(file)
-                            st.image(img, caption=f"{file.name[:10]}...", use_column=True)
+                            st.image(img, caption=f"{file.name[:10]}...", use_column_width=True)
             else:
                 st.session_state['uploaded_files'] = []
 
