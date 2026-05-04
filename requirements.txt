@@ -1,0 +1,13 @@
+requests
+PyYAML
+Pillow
+numpy
+opencv-python
+pandas
+streamlit
+psutil
+openpyxl
+segmentation-models-pytorch
+ultralytics
+dill
+pi-heif

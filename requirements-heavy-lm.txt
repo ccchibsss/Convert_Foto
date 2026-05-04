@@ -1,0 +1,7 @@
+accelerate
+bitsandbytes>=0.43.1
+diffusers>=0.35.0
+git+https://github.com/mobiusml/hqq@306e30d#egg=hqq
+peft
+sentencepiece
+transformers>=4.44.0
