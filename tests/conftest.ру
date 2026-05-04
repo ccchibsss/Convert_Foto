@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+ROOT = Path(__file__).resolve().parents[1]
+root_str = str(ROOT)
+if root_str not in sys.path:
+    sys.path.insert(0, root_str)
+
+
+@pytest.fixture
+def sample_workspace(tmp_path: Path) -> Path:
+    workspace = tmp_path / "workspace"
+    image_dir = workspace / "images" / "catalog"
+    image_dir.mkdir(parents=True)
+    Image.new("RGB", (24, 18), color=(24, 96, 180)).save(image_dir / "sample.png")
+    return workspace
