@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from tools.acceptance_settings import DEFAULT_ACCEPTANCE_CONFIG, LOCAL_ACCEPTANCE_SETTINGS, resolve_acceptance_settings
+
+
+def test_resolve_acceptance_settings_uses_default_config_without_source(tmp_path: Path) -> None:
+    resolved = resolve_acceptance_settings(tmp_path)
+
+    assert resolved["source"] is None
+    assert resolved["source_origin"] == "unset"
+    assert resolved["config"] == str((tmp_path / DEFAULT_ACCEPTANCE_CONFIG).resolve())
+    assert resolved["config_origin"] == "default"
+    assert resolved["local_settings_present"] is False
+    assert resolved["local_settings_path"] == str((tmp_path / LOCAL_ACCEPTANCE_SETTINGS).resolve())
+
+
+def test_resolve_acceptance_settings_reads_local_file(tmp_path: Path) -> None:
+    settings_path = tmp_path / LOCAL_ACCEPTANCE_SETTINGS
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(json.dumps({"source": "datasets/acceptance", "config": "config/custom.yaml"}), encoding="utf-8")
+
+    resolved = resolve_acceptance_settings(tmp_path)
+
+    assert resolved["source"] == str((tmp_path / "datasets/acceptance").resolve())
+    assert resolved["source_origin"] == "local"
+    assert resolved["config"] == str((tmp_path / "config/custom.yaml").resolve())
+    assert resolved["config_origin"] == "local"
+    assert resolved["local_settings_present"] is True
+
+
+def test_resolve_acceptance_settings_env_overrides_local(tmp_path: Path) -> None:
+    settings_path = tmp_path / LOCAL_ACCEPTANCE_SETTINGS
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(json.dumps({"source": "datasets/local", "config": "config/local.yaml"}), encoding="utf-8")
+
+    resolved = resolve_acceptance_settings(
+        tmp_path,
+        environ={
+            "WMREMOVE_ACCEPTANCE_SOURCE": "datasets/env",
+            "WMREMOVE_ACCEPTANCE_CONFIG": "config/env.yaml",
+        },
+    )
+
+    assert resolved["source"] == str((tmp_path / "datasets/env").resolve())
+    assert resolved["source_origin"] == "env"
+    assert resolved["config"] == str((tmp_path / "config/env.yaml").resolve())
+    assert resolved["config_origin"] == "env"
+
+
+def test_resolve_acceptance_settings_args_override_env(tmp_path: Path) -> None:
+    resolved = resolve_acceptance_settings(
+        tmp_path,
+        source="datasets/arg",
+        config="config/arg.yaml",
+        environ={
+            "WMREMOVE_ACCEPTANCE_SOURCE": "datasets/env",
+            "WMREMOVE_ACCEPTANCE_CONFIG": "config/env.yaml",
+        },
+    )
+
+    assert resolved["source"] == str((tmp_path / "datasets/arg").resolve())
+    assert resolved["source_origin"] == "arg"
+    assert resolved["config"] == str((tmp_path / "config/arg.yaml").resolve())
+    assert resolved["config_origin"] == "arg"
+
+
+def test_resolve_acceptance_settings_rejects_invalid_local_json(tmp_path: Path) -> None:
+    settings_path = tmp_path / LOCAL_ACCEPTANCE_SETTINGS
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text("{bad json", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        resolve_acceptance_settings(tmp_path)
